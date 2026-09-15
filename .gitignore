@@ -1,0 +1,15 @@
+# Project place file
+/RobloxManagement.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+
+# Python bytecode cache (blender_scripts)
+__pycache__/
+*.pyc
+
+# Blender backup files (redundant with the .blend itself)
+*.blend1
