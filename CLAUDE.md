@@ -56,9 +56,10 @@ mode `Edit`, pas depuis un Script.
 
 ## Autres conventions du projet
 
-- `style-guide.md` (racine) : référence obligatoire avant de générer un
-  modèle 3D (skill `roblox-3d-builder`) — palette, proportions, matériaux
-  par élément.
+- Style 3D : pas de guide de style écrit — les nouveaux modèles se calent
+  sur ceux déjà dans Studio (`ReplicatedStorage.Wyrmhaven.Assets.*` :
+  low-poly en triangles de WedgeParts fusionnés en unions, couleurs par
+  face), construits via le MCP `Roblox_Studio`.
 - `todo/` : tâches en attente, voir `todo/README.md` pour le protocole
   complet (vérifier avant de coder si déjà fait, supprimer le fichier une
   fois la tâche terminée ET testée en Play — pas juste écrite).
