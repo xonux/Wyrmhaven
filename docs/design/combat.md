@@ -522,8 +522,25 @@ Modèle d'une entrée :
 **Critères de test :** ce qui doit être vrai en simulation et en Play.
 ```
 
-*Aucun changement pour l'instant : cette section se remplira au fil des
-discussions.*
+### C-001 — Icônes de statuts dans l'écran de combat
+**Statut :** Proposé (les icônes sont en cours de dessin, **ne pas appliquer**)
+**Pourquoi :** remplacer le texte des statuts (O-4) par des icônes lisibles
+d'un coup d'œil, dans l'esprit de Monster Legends.
+**Ce qui change :** chaque statut de `StatusDefs` reçoit une icône PNG
+générée par `images/statuses/render_status_icons.py`. Le code couleur :
+- fond du badge carré arrondi : rouge = mauvais pour le porteur, vert =
+  bon ;
+- glyphe blanc au centre : ce qui est touché (épée = Attack…) ;
+- flèche en coin : le sens (rouge vers le bas, verte vers le haut). Une
+  flèche pour la version faible (Weaken), deux pour la forte (Cripple).
+
+Fait pour l'instant : `Weaken`. Le reste suivra après validation du style.
+Pour l'appliquer plus tard : importer les PNG dans Roblox, remplir
+`StatusDefs.Defs[id].Icon`, et afficher l'icône et les tours restants dans
+`BattleScreen.refreshBar`.
+**Scripts touchés :** `StatusDefs`, `BattleScreen`.
+**Critères de test :** en Play, chaque statut posé affiche son icône sous
+la barre de Health, lisible à la taille de l'écran de combat.
 
 ### Observations relevées à la lecture du code (pas des demandes)
 
