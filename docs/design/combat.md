@@ -523,24 +523,51 @@ Modèle d'une entrée :
 ```
 
 ### C-001 — Icônes de statuts dans l'écran de combat
-**Statut :** Proposé (les icônes sont en cours de dessin, **ne pas appliquer**)
+**Statut :** Proposé (icônes dessinées, en attente de validation du style par l'utilisateur)
 **Pourquoi :** remplacer le texte des statuts (O-4) par des icônes lisibles
 d'un coup d'œil, dans l'esprit de Monster Legends.
-**Ce qui change :** chaque statut de `StatusDefs` reçoit une icône PNG
-générée par `images/statuses/render_status_icons.py`. Le code couleur :
-- fond du badge carré arrondi : rouge = mauvais pour le porteur, vert =
-  bon ;
-- glyphe blanc au centre : ce qui est touché (épée = Attack…) ;
-- flèche en coin : le sens (rouge vers le bas, verte vers le haut). Une
-  flèche pour la version faible (Weaken), deux pour la forte (Cripple).
+**Ce qui change :** les 22 statuts de `StatusDefs` ont chacun une icône PNG
+de 256 px dans `images/statuses/<StatusId>.png`. Elles sont générées par
+`images/statuses/render_status_icons.py`, et `_preview.png` montre la
+planche complète. Le code visuel :
+- **fond** du badge carré arrondi : rouge = mauvais pour le porteur, vert
+  = bon ;
+- **dessin blanc** au centre : ce qui est touché ou l'effet ;
+- **coin bas-droit** : flèches pour une stat qui monte ou qui baisse (une
+  pour la version faible, deux pour la forte), losanges dorés pour la dose
+  d'un même effet.
 
-Fait pour l'instant : `Weaken`. Le reste suivra après validation du style.
-Pour l'appliquer plus tard : importer les PNG dans Roblox, remplir
-`StatusDefs.Defs[id].Icon`, et afficher l'icône et les tours restants dans
-`BattleScreen.refreshBar`.
+| Dessin | Statuts |
+|---|---|
+| Épée + flèches | Weaken ↓, Cripple ↓↓, Focus ↑, Rage ↑↑ |
+| Avance rapide + flèches | Slow ↓, Root ↓↓, Quicken ↑, Haste ↑↑ |
+| Cœur + flèche | Wither ↓ |
+| Flamme + losanges | Singe ◆, Burn ◆◆ |
+| Tête de mort | Poison |
+| Gouttes | Bleed |
+| Étoiles en orbite | Stun |
+| Cible | Taunt |
+| Bouclier + losanges | Guard ◆, Barrier ◆◆, Bulwark ◆◆◆ |
+| Cœur avec croix + losanges | Mend ◆, Renewal ◆◆ |
+| Crocs + goutte | Drain |
+| Étincelles | Cleanse |
+
+**Pour l'appliquer** (session locale) :
+1. importer les 22 PNG comme Decals/Images dans Roblox (Asset Manager ou
+   Creator Hub) ;
+2. mettre l'id de chaque image (`rbxassetid://…`) dans le champ `Icon` du
+   statut correspondant dans `StatusDefs.Defs` ;
+3. dans `BattleScreen.refreshBar`, afficher à la place des libellés texte
+   une rangée d'`ImageLabel` : l'icône, et le nombre de tours restants en
+   petit dans un coin. Garder le texte en secours pour un statut sans
+   `Icon` ;
+4. optionnel : dans `BattleScreen.playEvent`, pour l'événement `status`,
+   faire apparaître l'icône au-dessus du dragon au lieu de « +15% Attack ».
+
 **Scripts touchés :** `StatusDefs`, `BattleScreen`.
-**Critères de test :** en Play, chaque statut posé affiche son icône sous
-la barre de Health, lisible à la taille de l'écran de combat.
+**Critères de test :** en Play, chaque statut posé affiche la bonne icône
+sous la barre de Health avec ses tours restants. L'icône disparaît quand le
+statut expire, ou est retiré par Cleanse. Elle reste lisible sur mobile.
 
 ### Observations relevées à la lecture du code (pas des demandes)
 
@@ -573,6 +600,7 @@ discussion, et on en fera éventuellement des changements numérotés :
 
 | Date | Qui | Changement |
 |---|---|---|
+| 2026-09-26 | Claude (session cloud) | C-001 proposé : 22 icônes de statuts dessinées dans `images/statuses/`. Rien d'appliqué dans Studio. |
 | 2026-09-26 | Claude (session cloud) | Création du doc à partir de l'export complet `studio-export/` du 2026-09-26. Décrit l'état existant, aucun changement de code. |
 
 ---
