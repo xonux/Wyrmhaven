@@ -11,20 +11,11 @@ local function getRecord(player)
 	return balances[player.UserId]
 end
 
-local function refreshDebugAttributes(player)
-	-- Lightweight visibility for testing/HUD until a proper HUD reads GetBalance via RemoteEvent.
-	local record = getRecord(player)
-	if not record then return end
-	player:SetAttribute("Coins", record.Coins)
-	player:SetAttribute("Gems", record.Gems)
-end
-
 function EconomyService.InitPlayer(player, coinsOverride, gemsOverride)
 	balances[player.UserId] = {
 		Coins = coinsOverride or GameConstants.StartingCoins,
 		Gems = gemsOverride or GameConstants.StartingGems,
 	}
-	refreshDebugAttributes(player)
 end
 
 function EconomyService.RemovePlayer(player)
@@ -41,21 +32,18 @@ function EconomyService.AddCoins(player, amount)
 	local record = getRecord(player)
 	if not record then return end
 	record.Coins += amount
-	refreshDebugAttributes(player)
 end
 
 function EconomyService.AddGems(player, amount)
 	local record = getRecord(player)
 	if not record then return end
 	record.Gems += amount
-	refreshDebugAttributes(player)
 end
 
 function EconomyService.TrySpendCoins(player, amount)
 	local record = getRecord(player)
 	if not record or record.Coins < amount then return false end
 	record.Coins -= amount
-	refreshDebugAttributes(player)
 	return true
 end
 
@@ -63,7 +51,6 @@ function EconomyService.TrySpendGems(player, amount)
 	local record = getRecord(player)
 	if not record or record.Gems < amount then return false end
 	record.Gems -= amount
-	refreshDebugAttributes(player)
 	return true
 end
 

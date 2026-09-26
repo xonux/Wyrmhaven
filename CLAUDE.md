@@ -60,6 +60,12 @@ mode `Edit`, pas depuis un Script.
   sur ceux déjà dans Studio (`ReplicatedStorage.Wyrmhaven.Assets.*` :
   low-poly en triangles de WedgeParts fusionnés en unions, couleurs par
   face), construits via le MCP `Roblox_Studio`.
+- **Langue du jeu : anglais** (décision du 2026-09-20). Tout ce qui est
+  visible par le joueur — libellés de boutons, toasts, titres, `DisplayName`
+  des configs — est en anglais, et tout contenu ajouté à partir de maintenant
+  doit l'être aussi. Les identifiants internes (ids de `DragonDefs`,
+  `DecorationDefs`, clés de sauvegarde) ne changent jamais pour un simple
+  renommage d'affichage.
 - `todo/` : tâches en attente, voir `todo/README.md` pour le protocole
   complet (vérifier avant de coder si déjà fait, supprimer le fichier une
   fois la tâche terminée ET testée en Play — pas juste écrite).

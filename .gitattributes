@@ -1,0 +1,3 @@
+# Studio sources are LF; keep them LF in the working tree so a fresh clone
+# does not show the whole studio-export/ as modified on the next export.
+*.luau text eol=lf
