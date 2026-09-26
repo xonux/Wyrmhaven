@@ -1,0 +1,257 @@
+<!doctype html>
+<html><body style="margin:0;background:transparent">
+<script type="module">
+import * as THREE from './node_modules/three/build/three.module.js';
+
+const SIZE = 1024;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(SIZE, SIZE);
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+// ---------------------------------------------------------------- helpers
+const mat = (color, o = {}) => new THREE.MeshStandardMaterial({
+  color, roughness: o.rough ?? 0.55, metalness: 0, flatShading: !!o.flat,
+  emissive: o.glow ?? 0x000000, side: o.side ?? THREE.FrontSide });
+function mesh(geo, material, pos = [0, 0, 0], scale = [1, 1, 1], rot = [0, 0, 0], parent) {
+  const m = new THREE.Mesh(geo, material);
+  m.position.set(...pos); m.scale.set(...scale); m.rotation.set(...rot);
+  m.castShadow = true; m.receiveShadow = true;
+  if (parent) parent.add(m);
+  return m;
+}
+const sphere = (r = 1, w = 40, h = 28) => new THREE.SphereGeometry(r, w, h);
+// Puts `object` on the surface of `targets`, found by a ray from `from` along `dir`.
+function stick(object, targets, from, dir, lift = 0.01, face = true) {
+  const ray = new THREE.Raycaster(new THREE.Vector3(...from), new THREE.Vector3(...dir).normalize());
+  targets.forEach(t => t.updateMatrixWorld(true));
+  const hit = ray.intersectObjects(targets, true)[0];
+  if (!hit) return false;
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  object.position.copy(hit.point).addScaledVector(n, lift);
+  if (face) object.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  return true;
+}
+
+// ---------------------------------------------------------------- scenes
+const SCENES = {};
+
+SCENES.Dragons = () => {
+  const g = new THREE.Group();
+  const red = mat(0xe2462a, { rough: 0.45 }), redDark = mat(0xb8321e, { rough: 0.5 });
+  const cream = mat(0xf6d38e, { rough: 0.5 }), orange = mat(0xffae3a, { rough: 0.45, side: THREE.DoubleSide, glow: 0x3a1800 });
+  const dark = mat(0x2a1510, { rough: 0.3 }), white = mat(0xffffff, { rough: 0.2 });
+
+  // body, sitting, and its belly
+  mesh(sphere(), red, [0, 1.05, 0], [0.86, 1.08, 0.82], [0, 0, 0], g);
+  mesh(sphere(), cream, [0, 0.98, 0.42], [0.66, 0.86, 0.5], [0, 0, 0], g);
+  for (let i = 0; i < 4; i++) // belly plates
+    mesh(new THREE.TorusGeometry(0.5 - i * 0.04, 0.025, 8, 40, Math.PI), mat(0xe0b26a), [0, 0.55 + i * 0.3, 0.86 - Math.abs(i - 1.5) * 0.05], [1, 0.35, 1], [0.25, 0, Math.PI], g);
+
+  // hind legs and feet
+  for (const s of [-1, 1]) {
+    mesh(sphere(0.48), red, [s * 0.62, 0.5, 0.2], [0.9, 1, 1.1], [0, 0, 0], g);
+    mesh(sphere(0.3), red, [s * 0.7, 0.16, 0.66], [1, 0.55, 1.35], [0, 0, 0], g);
+    for (const k of [-1, 0, 1])
+      mesh(new THREE.ConeGeometry(0.07, 0.2, 12), cream, [s * 0.7 + k * 0.13, 0.12, 1.02], [1, 1, 1], [Math.PI / 2, 0, 0], g);
+    // arms
+    mesh(new THREE.CapsuleGeometry(0.14, 0.42, 8, 16), red, [s * 0.5, 1.12, 0.66], [1, 1, 1], [0.7, 0, s * 0.35], g);
+    mesh(sphere(0.17), red, [s * 0.42, 0.88, 0.95], [1, 0.8, 1.1], [0, 0, 0], g);
+  }
+
+  // tail: a string of shrinking spheres along a curve, spade at the end
+  const tail = new THREE.CatmullRomCurve3([[0, 0.42, -0.6], [0.9, 0.2, -0.55], [1.55, 0.22, 0.0], [1.85, 0.5, 0.3], [1.9, 0.95, 0.25]].map(v => new THREE.Vector3(...v)));
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120, pnt = tail.getPoint(t);
+    mesh(sphere(0.3 * (1 - t) + 0.07, 20, 14), red, pnt.toArray(), [1, 1, 1], [0, 0, 0], g);
+  }
+  const end = tail.getPoint(1);
+  mesh(new THREE.OctahedronGeometry(0.3, 0), orange, [end.x, end.y + 0.2, end.z], [0.7, 1.1, 0.25], [0, -0.3, 0], g);
+
+  // back spikes
+  for (let i = 0; i < 5; i++) {
+    const y = 2.35 - i * 0.38, z = -0.55 - Math.sin(i / 4 * Math.PI) * 0.3 - (i === 0 ? 0 : 0.05);
+    mesh(new THREE.ConeGeometry(0.13 - i * 0.012, 0.34, 14), orange, [0, y, z - 0.18], [0.5, 1, 1], [-1.9 + i * 0.12, 0, 0], g);
+  }
+
+  // wings: a bat wing shape, extruded, one per side
+  const w = new THREE.Shape();
+  w.moveTo(0, 0);
+  w.quadraticCurveTo(0.5, 0.9, 1.35, 1.25);
+  w.lineTo(1.25, 0.55);
+  w.quadraticCurveTo(1.05, 0.62, 0.95, 0.3);
+  w.quadraticCurveTo(0.75, 0.35, 0.62, 0.02);
+  w.quadraticCurveTo(0.4, 0.08, 0.3, -0.25);
+  w.quadraticCurveTo(0.15, -0.1, 0, 0);
+  const wingGeo = new THREE.ExtrudeGeometry(w, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 3, curveSegments: 24 });
+  for (const s of [-1, 1]) {
+    const wing = mesh(wingGeo, orange, [s * 0.5, 1.75, -0.45], [s * 1.5, 1.5, 1.5], [0.15, s * -0.45, s * 0.3], g);
+    // the bony edge along the top
+    const bone = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, 0, 0.04), new THREE.Vector3(0.5, 0.9, 0.04), new THREE.Vector3(1.35, 1.25, 0.04));
+    mesh(new THREE.TubeGeometry(bone, 30, 0.05, 10), redDark, [0, 0, 0], [1, 1, 1], [0, 0, 0], wing);
+  }
+
+  // head
+  const head = new THREE.Group(); head.position.set(0, 2.35, 0.15); g.add(head);
+  mesh(sphere(0.8), red, [0, 0, 0], [1, 0.92, 0.95], [0, 0, 0], head);
+  mesh(sphere(0.5), red, [0, -0.22, 0.58], [1.05, 0.72, 0.9], [0, 0, 0], head);
+  mesh(sphere(0.5), cream, [0, -0.36, 0.52], [0.9, 0.42, 0.85], [0, 0, 0], head);
+  for (const s of [-1, 1]) {
+    mesh(sphere(0.045), dark, [s * 0.16, -0.13, 1.02], [1, 0.7, 0.6], [0, 0, 0], head);
+    // eyes: big and friendly
+    mesh(sphere(0.25), white, [s * 0.34, 0.12, 0.6], [1, 1.12, 0.65], [0, 0, 0], head);
+    mesh(sphere(0.16), mat(0x3a2410, { rough: 0.25 }), [s * 0.35, 0.1, 0.72], [1, 1.15, 0.6], [0, 0, 0], head);
+    mesh(sphere(0.055), white, [s * 0.35 - 0.05, 0.17, 0.81], [1, 1, 0.5], [0, 0, 0], head);
+    // brows, horns, ear frills
+    mesh(new THREE.CapsuleGeometry(0.06, 0.22, 6, 12), redDark, [s * 0.34, 0.44, 0.55], [1, 1, 1], [0, 0, s * 1.75], head);
+    mesh(new THREE.ConeGeometry(0.15, 0.65, 18), cream, [s * 0.36, 0.72, -0.2], [1, 1, 1], [-0.55, 0, -s * 0.35], head);
+    mesh(new THREE.ConeGeometry(0.16, 0.45, 4), orange, [s * 0.78, 0.05, -0.15], [0.35, 1, 1], [0, 0, -s * 1.25], head);
+  }
+  // a small smile
+  mesh(new THREE.TorusGeometry(0.16, 0.022, 8, 30, Math.PI * 0.8), dark, [0, -0.34, 0.97], [1, 0.8, 1], [0.3, 0, Math.PI * 1.1], head);
+
+  g.rotation.y = -0.45;
+  return { group: g, view: [0.05, 0.3, 1] };
+};
+
+SCENES.Habitats = () => {
+  const g = new THREE.Group();
+  const grass = mat(0xa6c64a, { rough: 0.8 }), grassDark = mat(0x7fa83a, { rough: 0.85, flat: true });
+  const dirt = mat(0x9a6a3a, { rough: 0.9 });
+  const mound = mesh(new THREE.SphereGeometry(1.9, 64, 24, 0, Math.PI * 2, 0, Math.PI / 2), grass, [0, 0.2, 0], [1, 0.45, 1], [0, 0, 0], g);
+  mesh(new THREE.CylinderGeometry(1.9, 1.7, 0.4, 64), dirt, [0, 0, 0], [1, 1, 1], [0, 0, 0], g);
+
+  // the rock pile: flattened low-poly stones, stacked, with a dark cave mouth
+  const rocks = [];
+  const browns = [0x9b6130, 0xb07840, 0x86532a, 0xc08a4e];
+  const pile = [
+    [[0, 1.1, -0.15], [1.45, 0.8, 1.2], 1.0, 0],
+    [[0.15, 1.85, -0.25], [1.15, 0.6, 1.0], 0.95, 1],
+    [[-0.05, 2.4, -0.3], [0.9, 0.55, 0.8], 0.9, 3],
+    [[0.1, 2.8, -0.35], [0.6, 0.45, 0.6], 0.8, 1],
+    [[-1.0, 0.72, 0.25], [0.55, 0.45, 0.5], 1, 2],
+    [[1.05, 0.7, 0.35], [0.45, 0.4, 0.42], 1, 0],
+  ];
+  pile.forEach(([pos, sc, r, c], i) => {
+    rocks.push(mesh(new THREE.DodecahedronGeometry(r, 0), mat(browns[c], { rough: 0.75, flat: true }), pos, sc, [0.1 * i, 0.7 * i, 0.05 * i], g));
+  });
+  const cave = new THREE.Mesh(new THREE.CircleGeometry(0.4, 32), mat(0x2a170c, { rough: 1 }));
+  cave.scale.set(1, 1.2, 1);
+  g.add(cave); stick(cave, [rocks[0]], [0, 1.0, 5], [0, 0, -1], 0.02);
+
+  // grass tufts and little red flowers on the mound
+  const green = [grassDark, mat(0x8fbb42, { rough: 0.8, flat: true })];
+  const spots = [[-1.3, 0.8], [1.35, 0.6], [-0.6, 1.4], [0.8, 1.3], [1.1, -0.8], [-1.35, -0.4], [0.2, 1.6], [-1.0, 1.1]];
+  spots.forEach(([x, z], i) => {
+    const tuft = new THREE.Group();
+    for (let k = 0; k < 3; k++)
+      mesh(new THREE.ConeGeometry(0.07, 0.35, 5), green[k % 2], [(k - 1) * 0.07, 0.15, 0], [1, 1, 1], [0, 0, (k - 1) * 0.35], tuft);
+    g.add(tuft); stick(tuft, [mound], [x, 5, z], [0, -1, 0], 0, false);
+  });
+  [[-1.2, 0.95], [1.2, 0.85], [-0.2, 1.5], [0.95, -0.4], [-1.4, 0.1]].forEach(([x, z], i) => {
+    const f = new THREE.Group();
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * Math.PI * 2;
+      mesh(sphere(0.075, 16, 12), mat(0xe8364a, { rough: 0.5 }), [Math.cos(a) * 0.09, 0.1, Math.sin(a) * 0.09], [1, 0.7, 1], [0, 0, 0], f);
+    }
+    mesh(sphere(0.05, 12, 10), mat(0xffd23a), [0, 0.13, 0], [1, 0.7, 1], [0, 0, 0], f);
+    mesh(sphere(0.12, 12, 10), grassDark, [0.08, 0.02, -0.08], [1.2, 0.4, 0.8], [0, 0, 0], f);
+    g.add(f); stick(f, [mound], [x, 5, z], [0, -1, 0], 0, false);
+  });
+  g.rotation.y = 0.35;
+  return { group: g, view: [0, 0.55, 1] };
+};
+
+SCENES.Buildings = () => {
+  const g = new THREE.Group();
+  mesh(new THREE.CylinderGeometry(1.9, 1.8, 0.3, 64), mat(0x8fbf45, { rough: 0.85 }), [0, 0.15, 0], [1, 1, 1], [0, 0, 0], g);
+  const wall = mat(0xf1dcb0, { rough: 0.7 }), wood = mat(0x8a5328, { rough: 0.7 });
+  mesh(new THREE.BoxGeometry(2.0, 1.25, 1.6), wall, [0, 0.92, 0], [1, 1, 1], [0, 0, 0], g);
+  // corner posts and a beam under the roof
+  for (const x of [-1.01, 1.01]) for (const z of [-0.81, 0.81])
+    mesh(new THREE.BoxGeometry(0.14, 1.3, 0.14), wood, [x, 0.95, z], [1, 1, 1], [0, 0, 0], g);
+  mesh(new THREE.BoxGeometry(2.2, 0.14, 1.8), wood, [0, 1.6, 0], [1, 1, 1], [0, 0, 0], g);
+
+  // the roof: a thick, rounded yellow thatch
+  const roof = new THREE.Shape();
+  roof.moveTo(-1.45, 0); roof.lineTo(1.45, 0); roof.lineTo(0, 1.25); roof.closePath();
+  const roofGeo = new THREE.ExtrudeGeometry(roof, { depth: 2.1, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.14, bevelSegments: 6, curveSegments: 8 });
+  roofGeo.translate(0, 0, -1.05);
+  mesh(roofGeo, mat(0xf8d21c, { rough: 0.55 }), [0, 1.68, 0], [1, 1, 1], [0, 0, 0], g);
+  for (let i = 0; i < 5; i++) // thatch ridges
+    mesh(new THREE.CapsuleGeometry(0.05, 2.2, 6, 12), mat(0xe8b812, { rough: 0.6 }), [-1.05 + i * 0.2, 1.84 + i * 0.17, 0], [1, 1, 1], [Math.PI / 2, 0, 0], g);
+  // chimney
+  mesh(new THREE.BoxGeometry(0.38, 0.9, 0.38), mat(0x9ea3aa, { rough: 0.8 }), [0.62, 2.55, -0.35], [1, 1, 1], [0, 0, 0], g);
+  mesh(new THREE.BoxGeometry(0.48, 0.14, 0.48), mat(0x7d828a, { rough: 0.8 }), [0.62, 3.02, -0.35], [1, 1, 1], [0, 0, 0], g);
+  // door, windows, step
+  mesh(new THREE.BoxGeometry(0.5, 0.8, 0.08), wood, [0, 0.72, 0.82], [1, 1, 1], [0, 0, 0], g);
+  mesh(sphere(0.04), mat(0xf2c14a, { rough: 0.3 }), [0.15, 0.72, 0.88], [1, 1, 1], [0, 0, 0], g);
+  for (const x of [-0.62, 0.62]) {
+    mesh(new THREE.BoxGeometry(0.42, 0.42, 0.06), wood, [x, 1.0, 0.82], [1, 1, 1], [0, 0, 0], g);
+    mesh(new THREE.BoxGeometry(0.3, 0.3, 0.06), mat(0x7ec8f0, { rough: 0.2, glow: 0x0a2a3a }), [x, 1.0, 0.845], [1, 1, 1], [0, 0, 0], g);
+  }
+  mesh(new THREE.BoxGeometry(0.8, 0.1, 0.35), mat(0xb5b0a4, { rough: 0.8 }), [0, 0.33, 1.0], [1, 1, 1], [0, 0, 0], g);
+  g.rotation.y = -0.55;
+  return { group: g, view: [0, 0.5, 1] };
+};
+
+SCENES.Decorations = () => {
+  const g = new THREE.Group();
+  mesh(new THREE.CylinderGeometry(1.35, 1.25, 0.28, 48), mat(0x8fbf45, { rough: 0.85 }), [0, 0.14, 0], [1, 1, 1], [0, 0, 0], g);
+  const bark = mat(0x7a4a26, { rough: 0.8, flat: true });
+  mesh(new THREE.CylinderGeometry(0.22, 0.38, 1.6, 9), bark, [0, 1.05, 0], [1, 1, 1], [0, 0, 0], g);
+  for (let i = 0; i < 4; i++) { // roots
+    const a = i / 4 * Math.PI * 2 + 0.4;
+    mesh(new THREE.ConeGeometry(0.14, 0.55, 6), bark, [Math.cos(a) * 0.3, 0.38, Math.sin(a) * 0.3], [1, 1, 1], [Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1], g);
+  }
+  const leaves = [0x3f8f37, 0x4ea642, 0x367c30, 0x5bb54a];
+  [
+    [[0, 2.35, 0], 1.05, 0], [[0.75, 1.95, 0.25], 0.72, 1], [[-0.72, 2.0, 0.2], 0.75, 2],
+    [[0.05, 3.05, -0.05], 0.72, 3], [[0.2, 2.1, 0.75], 0.62, 1], [[-0.3, 2.2, -0.7], 0.7, 0],
+    [[0.55, 2.7, -0.3], 0.55, 2], [[-0.5, 2.75, 0.3], 0.55, 3],
+  ].forEach(([pos, r, c], i) => mesh(new THREE.IcosahedronGeometry(r, 1), mat(leaves[c], { rough: 0.7, flat: true }), pos, [1, 0.9, 1], [i, i * 2, 0], g));
+  g.rotation.y = 0.3;
+  return { group: g, view: [0, 0.4, 1] };
+};
+
+// ---------------------------------------------------------------- render
+window.SCENES = SCENES;
+window.renderIcon = (name) => {
+  const scene = new THREE.Scene();
+  const { group, view } = SCENES[name]();
+  scene.add(group);
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group);
+  const sph = box.getBoundingSphere(new THREE.Sphere());
+
+  // lights: warm key from the front left, cool fill, a rim from behind
+  scene.add(new THREE.HemisphereLight(0xfdfbff, 0x8a6f55, 1.35));
+  const key = new THREE.DirectionalLight(0xfff4e2, 2.6);
+  key.position.set(-2.5, 10, 4).add(sph.center); key.target.position.copy(sph.center);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 6; key.shadow.bias = -0.0005;
+  const sc = key.shadow.camera; sc.left = sc.bottom = -sph.radius * 1.5; sc.right = sc.top = sph.radius * 1.5; sc.far = 40;
+  scene.add(key, key.target);
+  const fill = new THREE.DirectionalLight(0xdfe8ff, 0.7); fill.position.set(6, 3, 4); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 1.4); rim.position.set(0, 5, -8); scene.add(rim);
+
+  // a soft contact shadow on the ground, nothing else of the ground drawn
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.y = box.min.y + 0.001; ground.receiveShadow = true;
+  scene.add(ground);
+
+  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 200);
+  const dir = new THREE.Vector3(...view).normalize();
+  const dist = sph.radius / Math.sin(THREE.MathUtils.degToRad(26 / 2)) * 0.78;
+  camera.position.copy(sph.center).addScaledVector(dir, dist);
+  camera.lookAt(sph.center);
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL('image/png');
+};
+window.ready = true;
+</script>
+</body></html>
