@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <clipPath id="right"><rect x="256" y="0" width="256" height="512"/></clipPath>
+  <polygon points="256.0,20.0 460.4,138.0 460.4,374.0 256.0,492.0 51.6,374.0 51.6,138.0" fill="#4d9be6" stroke="#4d9be6" stroke-width="28" stroke-linejoin="round"/>
+  <polygon points="256.0,20.0 460.4,138.0 460.4,374.0 256.0,492.0 51.6,374.0 51.6,138.0" fill="#3a7fc6" stroke="#3a7fc6" stroke-width="28" stroke-linejoin="round" clip-path="url(#right)"/>
+  <text x="256" y="256" dy="0.35em" text-anchor="middle" font-family="Liberation Sans, Arial, sans-serif"
+        font-weight="700" font-size="300" fill="#ffffff">R</text>
+</svg>
