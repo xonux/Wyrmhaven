@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Combat icon, 2D cartoon style: two swords crossed in an X, blades up.
+       Flat colours in two tones (light / shade), white highlights, and one
+       thick dark outline around each sword so it reads at small sizes. -->
+  <defs>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#1a1020" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- One sword, upright; the whole icon crosses them at mid-blade. -->
+    <g id="silhouette">
+      <path d="M-27 52 L-27 -200 L0 -258 L27 -200 L27 52 Z"/>
+      <rect x="-84" y="46" width="168" height="34" rx="17"/>
+      <rect x="-17" y="76" width="34" height="92" rx="8"/>
+      <circle cx="0" cy="182" r="25"/>
+    </g>
+
+    <g id="sword">
+      <!-- outline: the whole silhouette, stroked wide behind the colours -->
+      <use xlink:href="#silhouette" fill="#2a1f33" stroke="#2a1f33" stroke-width="22" stroke-linejoin="round"/>
+
+      <!-- blade: light left half, shaded right half, bright edge, fuller -->
+      <path d="M-27 52 L-27 -200 L0 -258 L0 52 Z" fill="#f2f6fa"/>
+      <path d="M0 52 L0 -258 L27 -200 L27 52 Z" fill="#b7c4d2"/>
+      <path d="M-5 30 L-5 -200 L0 -215 L5 -200 L5 30 Z" fill="#8795a6"/>
+      <path d="M-19 36 L-19 -196 L-9 -218" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <!-- crossguard -->
+      <rect x="-84" y="46" width="168" height="34" rx="17" fill="#f7c948"/>
+      <path d="M-84 66 Q-84 80 -67 80 L67 80 Q84 80 84 66 Z" fill="#dc9a25"/>
+      <path d="M-66 55 L-20 55" stroke="#fff3c4" stroke-width="6" stroke-linecap="round"/>
+      <path d="M0 50 L13 63 L0 76 L-13 63 Z" fill="#e8384a" stroke="#2a1f33" stroke-width="5" stroke-linejoin="round"/>
+      <path d="M-4 57 L-8 63" stroke="#ffb3bc" stroke-width="3.5" stroke-linecap="round"/>
+
+      <!-- grip: leather with wraps -->
+      <rect x="-17" y="80" width="34" height="88" fill="#9a522a"/>
+      <rect x="4" y="80" width="13" height="88" fill="#743a1c"/>
+      <g stroke="#2a1f33" stroke-width="5" stroke-linecap="round">
+        <path d="M-17 98 L17 88"/><path d="M-17 120 L17 110"/><path d="M-17 142 L17 132"/><path d="M-17 164 L17 154"/>
+      </g>
+
+      <!-- pommel -->
+      <circle cx="0" cy="182" r="25" fill="#f7c948"/>
+      <path d="M-25 182 A25 25 0 0 0 25 182 Z" fill="#dc9a25"/>
+      <circle cx="-8" cy="173" r="6" fill="#fff3c4"/>
+    </g>
+  </defs>
+
+  <g filter="url(#drop)" transform="translate(256 200)">
+    <use xlink:href="#sword" transform="rotate(40) scale(0.8) translate(0 100)"/>
+    <use xlink:href="#sword" transform="rotate(-40) scale(0.8) translate(0 100)"/>
+  </g>
+</svg>
