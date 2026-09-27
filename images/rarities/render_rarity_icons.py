@@ -1,171 +1,94 @@
-"""Renders the Wyrmhaven rarity badges (faceted gem, one cut per rarity) as PNGs.
+"""Renders the Wyrmhaven rarity badges (round colored disc + white letter) as PNGs.
 
-Each rarity gets its own silhouette so they stay readable at small sizes and
-without relying on color alone: Common = rhombus, Rare = hexagon,
-Epic = brilliant-cut gem, Legendary = star with a golden glow.
+Same badge look as images/elements (dark edge, silver rim, gradient disc,
+gloss), with the rarity's initial in place of the glyph.
 Drawn at 4x and downsampled for smooth edges. Output: <Rarity>.png (512px).
 """
-import math
 import os
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 S = 2048  # working size
 OUT = 512
 HERE = os.path.dirname(os.path.abspath(__file__))
+FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 CLEAR = (0, 0, 0, 0)
-LIGHT = (-0.55, -0.83)  # light comes from the top-left (screen coords, y down)
+WHITE = (255, 255, 255, 255)
+
+RARITIES = {
+    # name: (letter, disc top, disc bottom, letter outline)
+    "Common": ("C", (178, 184, 194), (104, 110, 122), (58, 62, 72)),
+    "Rare": ("R", (78, 168, 246), (22, 88, 196), (12, 48, 118)),
+    "Epic": ("E", (184, 104, 246), (104, 34, 180), (58, 14, 108)),
+    "Legendary": ("L", (255, 206, 72), (222, 126, 14), (130, 66, 4)),
+}
 
 
 def p(x, y):
     return (x * S, y * S)
 
 
-def lerp(a, b, t):
-    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(len(a)))
+def vertical_gradient(top, bottom):
+    mask = Image.linear_gradient("L").resize((S, S))
+    return Image.composite(Image.new("RGBA", (S, S), bottom), Image.new("RGBA", (S, S), top), mask)
 
 
-def scale_about(points, center, k):
-    cx, cy = center
-    return [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in points]
+def disc_mask(radius):
+    mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(mask).ellipse([p(0.5 - radius, 0.5 - radius), p(0.5 + radius, 0.5 + radius)], fill=255)
+    return mask
 
 
-def star(cx, cy, r_out, r_in, n):
-    pts = []
-    for i in range(n * 2):
-        r = r_out if i % 2 == 0 else r_in
-        a = -math.pi / 2 + i * math.pi / n
-        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
-    return pts
+def solid(color, alpha):
+    return Image.merge("RGBA", (*[Image.new("L", (S, S), c) for c in color[:3]], alpha))
 
 
-def regular(cx, cy, r, n, rot=-math.pi / 2):
-    return [(cx + r * math.cos(rot + i * math.tau / n), cy + r * math.sin(rot + i * math.tau / n)) for i in range(n)]
-
-
-def sparkle(d, cx, cy, r, fill=(255, 255, 255, 255)):
-    w = r * 0.22
-    d.polygon([p(cx, cy - r), p(cx + w, cy - w), p(cx + r, cy), p(cx + w, cy + w),
-               p(cx, cy + r), p(cx - w, cy + w), p(cx - r, cy), p(cx - w, cy - w)], fill=fill)
-
-
-def gem(outer, center, table_k, light, dark, edge):
-    """Faceted gem: flat table in the middle, one shaded facet per outer edge."""
+def render(letter, top, bottom, outline):
     img = Image.new("RGBA", (S, S), CLEAR)
-    inner = scale_about(outer, center, table_k)
-    n = len(outer)
 
-    # dark outline + drop shadow under the whole silhouette
-    sil = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(sil).polygon([p(*v) for v in outer], fill=255)
-    grown = sil.filter(ImageFilter.MaxFilter(int(S * 0.028) | 1))
-    shadow = grown.filter(ImageFilter.GaussianBlur(S * 0.014)).point(lambda v: v * 0.45)
-    img.alpha_composite(Image.merge("RGBA", (*[Image.new("L", (S, S), 0)] * 3, shadow)), (0, int(S * 0.016)))
-    img.alpha_composite(Image.merge("RGBA", (*[Image.new("L", (S, S), c) for c in edge], grown)))
+    # dark outer edge, light metallic rim, colored disc
+    img.paste(Image.new("RGBA", (S, S), (34, 36, 42, 230)), (0, 0), disc_mask(0.495))
+    img.paste(vertical_gradient((242, 244, 248, 255), (150, 156, 168, 255)), (0, 0), disc_mask(0.482))
+    img.paste(vertical_gradient(top + (255,), bottom + (255,)), (0, 0), disc_mask(0.43))
 
-    layer = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(layer)
-    for i in range(n):
-        a, b = outer[i], outer[(i + 1) % n]
-        ia, ib = inner[i], inner[(i + 1) % n]
-        mx, my = (a[0] + b[0]) / 2 - center[0], (a[1] + b[1]) / 2 - center[1]
-        length = math.hypot(mx, my) or 1
-        t = 0.5 + 0.5 * (mx * LIGHT[0] + my * LIGHT[1]) / length
-        d.polygon([p(*a), p(*b), p(*ib), p(*ia)], fill=lerp(dark, light, t) + (255,))
-    # table: vertical gradient from light to mid
-    table_mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(table_mask).polygon([p(*v) for v in inner], fill=255)
-    grad = Image.linear_gradient("L").resize((S, S))
-    table = Image.composite(Image.new("RGBA", (S, S), lerp(light, dark, 0.45) + (255,)),
-                            Image.new("RGBA", (S, S), lerp(light, (255, 255, 255), 0.25) + (255,)), grad)
-    layer.paste(table, (0, 0), table_mask)
+    # soft inner shadow at the disc edge
+    shade = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(shade).ellipse([p(0.07, 0.07), p(0.93, 0.93)], outline=150, width=int(0.03 * S))
+    shade = shade.filter(ImageFilter.GaussianBlur(S * 0.012))
+    shade = Image.composite(shade, Image.new("L", (S, S), 0), disc_mask(0.43))
+    img = Image.alpha_composite(img, solid((0, 0, 0), shade.point(lambda v: v * 0.5)))
 
-    # thin bright lines along the facet seams
-    seam = lerp(light, (255, 255, 255), 0.6) + (150,)
-    wid = int(S * 0.006)
-    for i in range(n):
-        d.line([p(*outer[i]), p(*inner[i])], fill=seam, width=wid)
-    d.line([p(*v) for v in inner + [inner[0]]], fill=seam, width=wid, joint="curve")
-    img.alpha_composite(layer)
+    # glossy highlight on the upper half
+    gloss_mask = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(gloss_mask).ellipse([p(0.16, 0.10), p(0.84, 0.52)], fill=255)
+    fade = Image.linear_gradient("L").resize((S, S)).point(lambda v: max(0, 70 - v * 0.28))
+    gloss_alpha = Image.composite(fade, Image.new("L", (S, S), 0), gloss_mask)
+    gloss_alpha = Image.composite(gloss_alpha, Image.new("L", (S, S), 0), disc_mask(0.43))
+    img = Image.alpha_composite(img, solid((255, 255, 255), gloss_alpha))
 
-    # gloss streak across the upper-left of the table
-    gloss = Image.new("L", (S, S), 0)
-    gd = ImageDraw.Draw(gloss)
-    gd.polygon([p(center[0] - 0.14, center[1] - 0.02), p(center[0] - 0.02, center[1] - 0.14),
-                p(center[0] + 0.03, center[1] - 0.11), p(center[0] - 0.11, center[1] + 0.01)], fill=110)
-    gloss = Image.composite(gloss, Image.new("L", (S, S), 0), table_mask).filter(ImageFilter.GaussianBlur(S * 0.004))
-    img.alpha_composite(Image.merge("RGBA", (*[Image.new("L", (S, S), 255)] * 3, gloss)))
-    return img
+    # letter: centered on its ink box, colored outline + soft drop shadow
+    font = ImageFont.truetype(FONT, int(S * 0.50))
+    stroke = int(S * 0.022)
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    l, t, r, b = probe.textbbox((0, 0), letter, font=font, stroke_width=stroke)
+    x, y = (S - (r - l)) / 2 - l, (S - (b - t)) / 2 - t
+    ink = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(ink).text((x, y), letter, font=font, fill=255, stroke_width=stroke, stroke_fill=255)
+    shadow = ink.filter(ImageFilter.GaussianBlur(S * 0.012)).point(lambda v: v * 0.4)
+    img.alpha_composite(solid((0, 0, 0), shadow), (0, int(S * 0.016)))
+    img = Image.alpha_composite(img, solid(outline, ink))
+    face = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(face).text((x, y), letter, font=font, fill=255)
+    img = Image.alpha_composite(img, solid(WHITE, face))
 
-
-def glow(color, radius, strength, rays=0):
-    g = Image.new("L", (S, S), 0)
-    gd = ImageDraw.Draw(g)
-    gd.ellipse([p(0.5 - radius, 0.5 - radius), p(0.5 + radius, 0.5 + radius)], fill=int(255 * strength))
-    for i in range(rays):
-        a = i * math.tau / rays - math.pi / 2
-        half = math.radians(5)
-        gd.polygon([p(0.5, 0.5), p(0.5 + 0.38 * math.cos(a - half), 0.5 + 0.38 * math.sin(a - half)),
-                    p(0.5 + 0.38 * math.cos(a + half), 0.5 + 0.38 * math.sin(a + half))], fill=int(200 * strength))
-    # blur stays well inside the canvas so the glow never shows a square cut
-    g = g.filter(ImageFilter.GaussianBlur(S * 0.03))
-    return Image.merge("RGBA", (*[Image.new("L", (S, S), c) for c in color], g))
-
-
-def common():
-    outer = [(0.50, 0.14), (0.78, 0.50), (0.50, 0.86), (0.22, 0.50)]
-    return gem(outer, (0.5, 0.5), 0.5, (214, 220, 228), (92, 100, 114), (38, 42, 50))
-
-
-def rare():
-    outer = regular(0.5, 0.5, 0.37, 6)
-    return gem(outer, (0.5, 0.5), 0.52, (132, 206, 255), (18, 78, 186), (12, 34, 84))
-
-
-def epic():
-    outer = [(0.28, 0.35), (0.38, 0.20), (0.62, 0.20), (0.72, 0.35), (0.50, 0.84)]
-    center = (0.5, 0.40)
-    img = glow((186, 96, 255), 0.30, 0.55)
-    img.alpha_composite(gem(outer, center, 0.5, (224, 158, 255), (86, 26, 168), (40, 10, 80)))
-    return img
-
-
-def legendary():
-    outer = star(0.5, 0.52, 0.40, 0.19, 5)
-    img = glow((255, 196, 60), 0.30, 0.8, rays=10)
-    img.alpha_composite(gem(outer, (0.5, 0.52), 0.45, (255, 236, 130), (206, 118, 8), (96, 50, 4)))
-    return img
-
-
-RARITIES = {
-    # (render, sparkles as (x, y, r))
-    "Common": (common, []),
-    "Rare": (rare, [(0.74, 0.24, 0.07)]),
-    "Epic": (epic, [(0.76, 0.22, 0.075), (0.25, 0.66, 0.045)]),
-    "Legendary": (legendary, [(0.80, 0.20, 0.085), (0.19, 0.30, 0.055), (0.78, 0.80, 0.05)]),
-}
-
-
-def render(fn, sparkles):
-    img = fn()
-    # sparkles get a soft dark halo so they still read on light backgrounds
-    layer = Image.new("RGBA", (S, S), CLEAR)
-    d = ImageDraw.Draw(layer)
-    for x, y, r in sparkles:
-        sparkle(d, x, y, r)
-    halo = layer.getchannel("A").filter(ImageFilter.GaussianBlur(S * 0.006)).point(lambda v: v * 0.5)
-    img.alpha_composite(Image.merge("RGBA", (*[Image.new("L", (S, S), 40)] * 3, halo)))
-    img.alpha_composite(layer)
     return img.resize((OUT, OUT), Image.LANCZOS)
 
 
 def main():
-    icons = []
-    for name, (fn, sparkles) in RARITIES.items():
-        icon = render(fn, sparkles)
+    icons = [render(*spec) for spec in RARITIES.values()]
+    for name, icon in zip(RARITIES, icons):
         icon.save(os.path.join(HERE, f"{name}.png"))
-        icons.append(icon)
     # contact sheet: UI dark grey on top, light background below, plus a 64px row
     sheet = Image.new("RGBA", (OUT * 4 + 50, OUT * 2 + 130), (34, 36, 41, 255))
     ImageDraw.Draw(sheet).rectangle([0, OUT + 20, sheet.width, OUT * 2 + 40], fill=(236, 232, 220, 255))
