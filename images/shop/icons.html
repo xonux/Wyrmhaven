@@ -1,7 +1,9 @@
 <!doctype html>
 <html><body style="margin:0;background:transparent">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
 <script type="module">
-import * as THREE from './node_modules/three/build/three.module.js';
+import * as THREE from 'three';
+import { RoomEnvironment } from './node_modules/three/examples/jsm/environments/RoomEnvironment.js';
 
 const SIZE = 1024;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -219,11 +221,56 @@ SCENES.Decorations = () => {
   return { group: g, view: [0, 0.4, 1] };
 };
 
+SCENES.Combat = () => {
+  // Two swords crossed in an X, blades up: the combat / adventure button.
+  const g = new THREE.Group();
+  const steel = mat(0xdfe6ee, { rough: 0.22 }); steel.metalness = 0.85;
+  const steelDark = mat(0x9aa6b4, { rough: 0.3 }); steelDark.metalness = 0.85;
+  const gold = mat(0xf2b632, { rough: 0.28 }); gold.metalness = 0.8;
+  const leather = mat(0x7a3b1e, { rough: 0.75 }), wrap = mat(0x4f2412, { rough: 0.8 });
+  const gem = mat(0xe8283c, { rough: 0.15, glow: 0x3a0008 });
+
+  const blade = new THREE.Shape();
+  blade.moveTo(-0.2, 0); blade.lineTo(0.2, 0); blade.lineTo(0.2, 2.75); blade.lineTo(0, 3.25); blade.lineTo(-0.2, 2.75); blade.closePath();
+  const bladeGeo = new THREE.ExtrudeGeometry(blade, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2 });
+  bladeGeo.translate(0, 0, -0.02);
+
+  function sword() {
+    const s = new THREE.Group();
+    mesh(bladeGeo, steel, [0, 0, 0], [1, 1, 1], [0, 0, 0], s);
+    for (const z of [-0.075, 0.075]) // the fuller down the middle, both faces
+      mesh(new THREE.BoxGeometry(0.07, 2.45, 0.02), steelDark, [0, 1.35, z], [1, 1, 1], [0, 0, 0], s);
+    // crossguard with rounded ends and a gem
+    mesh(new THREE.CapsuleGeometry(0.11, 1.0, 8, 16), gold, [0, -0.02, 0], [1, 1, 1.25], [0, 0, Math.PI / 2], s);
+    for (const x of [-0.62, 0.62]) mesh(sphere(0.17), gold, [x, -0.02, 0], [1, 1, 1], [0, 0, 0], s);
+    mesh(new THREE.OctahedronGeometry(0.13, 0), gem, [0, -0.02, 0.15], [1, 1.2, 0.6], [0, 0, 0], s);
+    // grip, wrapped, and the pommel
+    mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.85, 20), leather, [0, -0.55, 0], [1, 1, 1], [0, 0, 0], s);
+    for (let i = 0; i < 4; i++)
+      mesh(new THREE.TorusGeometry(0.11, 0.028, 8, 24), wrap, [0, -0.25 - i * 0.2, 0], [1, 1, 1], [Math.PI / 2, 0, 0.25], s);
+    mesh(sphere(0.19), gold, [0, -1.08, 0], [1, 1, 1], [0, 0, 0], s);
+    mesh(sphere(0.07), gem, [0, -1.08, 0.16], [1, 1, 0.5], [0, 0, 0], s);
+    return s;
+  }
+  // each sword pivots around the point where the two blades meet
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    const s = sword(); s.position.y = -1.35; pivot.add(s);
+    pivot.rotation.set(0, side * 0.12, side * 0.72);
+    pivot.position.z = side * 0.13;
+    g.add(pivot);
+  }
+  return { group: g, view: [0, 0.12, 1], ground: false, fit: 0.8 };
+};
+
 // ---------------------------------------------------------------- render
 window.SCENES = SCENES;
 window.renderIcon = (name) => {
   const scene = new THREE.Scene();
-  const { group, view } = SCENES[name]();
+  const { group, view, ground: hasGround = true, fit = 0.78 } = SCENES[name]();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = hasGround ? 0 : 0.9;
   scene.add(group);
   group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(group);
@@ -242,11 +289,11 @@ window.renderIcon = (name) => {
   // a soft contact shadow on the ground, nothing else of the ground drawn
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.28 }));
   ground.rotation.x = -Math.PI / 2; ground.position.y = box.min.y + 0.001; ground.receiveShadow = true;
-  scene.add(ground);
+  if (hasGround) scene.add(ground);
 
   const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 200);
   const dir = new THREE.Vector3(...view).normalize();
-  const dist = sph.radius / Math.sin(THREE.MathUtils.degToRad(26 / 2)) * 0.78;
+  const dist = sph.radius / Math.sin(THREE.MathUtils.degToRad(26 / 2)) * fit;
   camera.position.copy(sph.center).addScaledVector(dir, dist);
   camera.lookAt(sph.center);
   renderer.render(scene, camera);
