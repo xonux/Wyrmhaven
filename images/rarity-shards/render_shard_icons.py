@@ -39,8 +39,9 @@ def lerp(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
-def miter_offset(pts, w):
-    """Polygon grown outward by w with sharp (mitered) corners."""
+def miter_offset(pts, w, cap=3):
+    """Polygon grown outward by w with sharp (mitered) corners (miter length
+    capped at cap * w)."""
     area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts)))
     sign = 1 if area > 0 else -1  # outward side of each edge
     normals = []
@@ -55,8 +56,8 @@ def miter_offset(pts, w):
         k = 1 + n1[0] * n2[0] + n1[1] * n2[1]
         mx, my = (n1[0] + n2[0]) / k, (n1[1] + n2[1]) / k
         m = math.hypot(mx, my)
-        if m > 3:  # cap very sharp spikes
-            mx, my = mx * 3 / m, my * 3 / m
+        if m > cap:  # cap very sharp spikes
+            mx, my = mx * cap / m, my * cap / m
         out.append((x + mx * w, y + my * w))
     return out
 
