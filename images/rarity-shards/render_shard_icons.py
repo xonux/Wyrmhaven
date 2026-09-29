@@ -1,6 +1,6 @@
 """Renders the Wyrmhaven rarity shards (a broken, faceted crystal shard plus
 a small chip) as PNGs, one per rarity, in the colors of the rarity badges
-(images/rarities). Higher rarities get a glow and more sparkles.
+(images/rarities). Straight edges and sharp corners, no glow or sparkles.
 Drawn at 4x and downsampled for smooth edges. Output: <Rarity>.png (512px).
 """
 import math
@@ -15,22 +15,20 @@ CLEAR = (0, 0, 0, 0)
 LIGHT = (-0.6, -0.8)  # light from the top-left (screen coords, y down)
 
 RARITIES = {
-    # name: (light, dark, outline, glow or None, sparkles as (x, y, r))
-    # light/dark match the rarity badge disc top/bottom colors
-    "Common": ((200, 206, 216), (96, 102, 114), (48, 52, 62), None, []),
-    "Rare": ((110, 190, 255), (20, 80, 188), (12, 42, 108), None, [(0.74, 0.2, 0.06)]),
-    "Epic": ((206, 138, 255), (96, 30, 170), (52, 12, 98), (186, 96, 255), [(0.76, 0.2, 0.065), (0.24, 0.6, 0.045)]),
-    "Legendary": ((255, 222, 110), (214, 118, 8), (118, 58, 4), (255, 190, 60),
-                  [(0.77, 0.18, 0.075), (0.22, 0.3, 0.05), (0.8, 0.62, 0.045)]),
+    # name: (light, dark, outline) - light/dark match the rarity badge disc
+    "Common": ((200, 206, 216), (96, 102, 114), (48, 52, 62)),
+    "Rare": ((110, 190, 255), (20, 80, 188), (12, 42, 108)),
+    "Epic": ((206, 138, 255), (96, 30, 170), (52, 12, 98)),
+    "Legendary": ((255, 222, 110), (214, 118, 8), (118, 58, 4)),
 }
 
 # Main shard: tall, leaning, with a jagged broken base. Core = where facets meet.
-SHARD = [(0.55, 0.08), (0.67, 0.28), (0.71, 0.5), (0.65, 0.72), (0.6, 0.83), (0.55, 0.77), (0.49, 0.87),
-         (0.42, 0.79), (0.36, 0.84), (0.31, 0.7), (0.31, 0.48), (0.4, 0.26)]
-SHARD_CORE = (0.5, 0.66)
+SHARD = [(0.56, 0.07), (0.71, 0.38), (0.66, 0.8), (0.58, 0.73), (0.51, 0.89), (0.44, 0.76), (0.34, 0.84),
+         (0.29, 0.42)]
+SHARD_CORE = (0.5, 0.6)
 # Small chip lying at its foot
-CHIP = [(0.69, 0.7), (0.8, 0.73), (0.83, 0.86), (0.73, 0.91), (0.66, 0.84)]
-CHIP_CORE = (0.74, 0.8)
+CHIP = [(0.71, 0.66), (0.86, 0.77), (0.77, 0.92), (0.66, 0.85)]
+CHIP_CORE = (0.75, 0.8)
 
 
 def p(x, y):
@@ -39,6 +37,28 @@ def p(x, y):
 
 def lerp(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def miter_offset(pts, w):
+    """Polygon grown outward by w with sharp (mitered) corners."""
+    area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts)))
+    sign = 1 if area > 0 else -1  # outward side of each edge
+    normals = []
+    for i in range(len(pts)):
+        (ax, ay), (bx, by) = pts[i], pts[(i + 1) % len(pts)]
+        ex, ey = bx - ax, by - ay
+        ln = math.hypot(ex, ey)
+        normals.append((-ey / ln * -sign, ex / ln * -sign))
+    out = []
+    for i, (x, y) in enumerate(pts):
+        n1, n2 = normals[i - 1], normals[i]
+        k = 1 + n1[0] * n2[0] + n1[1] * n2[1]
+        mx, my = (n1[0] + n2[0]) / k, (n1[1] + n2[1]) / k
+        m = math.hypot(mx, my)
+        if m > 3:  # cap very sharp spikes
+            mx, my = mx * 3 / m, my * 3 / m
+        out.append((x + mx * w, y + my * w))
+    return out
 
 
 def solid(color, alpha):
@@ -50,9 +70,9 @@ def crystal(outline_pts, core, light, dark, edge):
     sil = Image.new("L", (S, S), 0)
     pts = [p(*v) for v in outline_pts]
     ImageDraw.Draw(sil).polygon(pts, fill=255)
-    # outline: the silhouette plus a thick stroke along its edge
-    grown = sil.copy()
-    ImageDraw.Draw(grown).line(pts + [pts[0], pts[1]], fill=255, width=int(S * 0.026), joint="curve")
+    # outline: the silhouette pushed outward with mitered (sharp) corners
+    grown = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(grown).polygon([p(*v) for v in miter_offset(outline_pts, 0.013)], fill=255)
     shadow = grown.filter(ImageFilter.GaussianBlur(S * 0.014)).point(lambda v: v * 0.45)
     img.alpha_composite(solid((0, 0, 0), shadow), (0, int(S * 0.016)))
     img.alpha_composite(solid(edge, grown))
@@ -74,34 +94,13 @@ def crystal(outline_pts, core, light, dark, edge):
     return img, sil
 
 
-def render(light, dark, edge, glow, sparkles):
+def render(light, dark, edge):
     img = Image.new("RGBA", (S, S), CLEAR)
-    if glow:
-        g = Image.new("L", (S, S), 0)
-        ImageDraw.Draw(g).polygon([p(*v) for v in SHARD], fill=190)
-        g = g.filter(ImageFilter.GaussianBlur(S * 0.05)).point(lambda v: min(255, v * 1.6))
-        img.alpha_composite(solid(glow, g))
     chip, _ = crystal(CHIP, CHIP_CORE, light, dark, edge)
     img.alpha_composite(chip)
     shard, sil = crystal(SHARD, SHARD_CORE, light, dark, edge)
     img.alpha_composite(shard)
 
-    # gloss streak on the upper left face + a bright edge along the top
-    gloss = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(gloss).polygon([p(0.41, 0.3), p(0.5, 0.17), p(0.52, 0.22), p(0.43, 0.38)], fill=150)
-    gloss = Image.composite(gloss, Image.new("L", (S, S), 0), sil).filter(ImageFilter.GaussianBlur(S * 0.004))
-    img.alpha_composite(solid((255, 255, 255), gloss))
-
-    # sparkles with a soft dark halo so they read on light backgrounds too
-    sp = Image.new("RGBA", (S, S), CLEAR)
-    sd = ImageDraw.Draw(sp)
-    for x, y, r in sparkles:
-        w = r * 0.22
-        sd.polygon([p(x, y - r), p(x + w, y - w), p(x + r, y), p(x + w, y + w),
-                    p(x, y + r), p(x - w, y + w), p(x - r, y), p(x - w, y - w)], fill=(255, 255, 255, 255))
-    halo = sp.getchannel("A").filter(ImageFilter.GaussianBlur(S * 0.006)).point(lambda v: v * 0.5)
-    img.alpha_composite(solid((40, 40, 40), halo))
-    img.alpha_composite(sp)
     return img.resize((OUT, OUT), Image.LANCZOS)
 
 
