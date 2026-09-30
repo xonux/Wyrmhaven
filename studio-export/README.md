@@ -97,19 +97,3 @@ definition and it is versioned here. The combat ones are `RequestPveInfo`,
 `RequestPveTeam`, `RequestPveFight`, `RequestPveAction` (client to server) and
 `PveStatusUpdated`, `PveBattleStarted`, `PveBattleUpdate`, `PveBattleResult`
 (server to client).
-
-## Edited here, not yet in Studio — 2026-09-30 (new combat statuses)
-
-Written in this folder (no Studio access in that session), tested with
-`tools/combat-sim` (55 scripted checks + 300 AI fights), **to paste into
-Studio by hand**:
-`Config/StatusDefs`, `Services/{CombatEngine,CombatAI,PveService}`,
-`UI/BattleScreen`.
-
-- New statuses: Freeze, Sleep (controls, like Stun), Silence, Blind,
-  Confuse, Expose (bad); Regen, Vigor, Thorns, Evade, Immune, Revive,
-  MegaTaunt (good). Rules and numbers in `StatusDefs`.
-- `stunTurns` is gone: every control is a status in `fighter.statuses`
-  (`CombatEngine.IsDisabled(fighter)` / `battle:isDisabled` to ask).
-- Cleanse now lifts every bad status (`StatusDefs.IsBad`), controls included.
-- No skill in `SkillDefs` applies the new statuses yet.

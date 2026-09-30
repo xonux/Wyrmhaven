@@ -439,6 +439,32 @@ def g_sword():
     return [s_]
 
 
+def g_lifesteal():
+    """Fangs over a heart (health taken back from each hit) - a heart rather
+    than Drain's drop so the two read apart."""
+    f = Layer()
+    f.line(bezier([(0.16, 0.22), (0.36, 0.36), (0.64, 0.36), (0.84, 0.22)]), 0.07)
+    for x in (0.34, 0.66):
+        f.poly([(x - 0.07, 0.32), (x + 0.07, 0.32), (x, 0.54)])
+    h = Layer().poly(heart(0.5, 0.7, 0.16))
+    return [f, h]
+
+
+def g_counter():
+    """Sword with a return arrow."""
+    arc = Layer().arc(0.5, 0.52, 0.32, 200, 330, 0.055)
+    e = math.radians(200)
+    end = (0.5 + 0.32 * math.cos(e), 0.52 + 0.32 * math.sin(e))
+    tan = (math.sin(e), -math.cos(e))  # travel direction at the start, going backwards
+    nrm = (math.cos(e), math.sin(e))
+    arc.poly([(end[0] + tan[0] * 0.1, end[1] + tan[1] * 0.1), (end[0] + nrm[0] * 0.075, end[1] + nrm[1] * 0.075),
+              (end[0] - nrm[0] * 0.075, end[1] - nrm[1] * 0.075)])
+    sw = g_sword()
+    for lay in sw:
+        lay.img = fit(lay.img, 0.8, 0.02, 0.08)
+    return [arc] + sw
+
+
 STATUSES = {
     # name: (kind, glyph, modifier)  - modifier: ("diamonds", n) / ("up", n) / ("down", n) / None
     "Regen": ("buff", g_regen, None),
@@ -454,6 +480,8 @@ STATUSES = {
     "Expose": ("debuff", g_expose, None),
     "Confuse": ("debuff", g_confuse, None),
     "MegaTaunt": ("buff", g_megataunt, None),
+    "Lifesteal": ("buff", g_lifesteal, None),
+    "Counter": ("buff", g_counter, None),
 }
 
 
