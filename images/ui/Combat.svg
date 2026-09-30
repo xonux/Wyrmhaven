@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Combat icon, simple flat style: two swords crossed in an X, blades up.
+       No outline and no highlights - plain shapes in a few flat colours, the
+       blade split in a light and a shaded half so it still reads as metal. -->
+  <defs>
+    <!-- One sword, upright; the icon crosses the two at mid-blade. -->
+    <g id="sword">
+      <path d="M-21 40 L-21 -202 L0 -240 L0 40 Z" fill="#e6ebf0"/>
+      <path d="M0 40 L0 -240 L21 -202 L21 40 Z" fill="#aab6c3"/>
+      <rect x="-62" y="40" width="124" height="20" rx="4" fill="#d9a441"/>
+      <rect x="-11" y="60" width="22" height="78" fill="#5a3a26"/>
+      <circle cx="0" cy="150" r="17" fill="#d9a441"/>
+    </g>
+    <!-- The sword in front cuts a thin gap into the one behind, so the two
+         blades stay apart where they cross. -->
+    <mask id="gap" maskUnits="userSpaceOnUse" x="-256" y="-256" width="512" height="512">
+      <rect x="-256" y="-256" width="512" height="512" fill="#fff"/>
+      <use xlink:href="#sword" transform="rotate(-42) scale(0.92) translate(0 100)" stroke="#000" stroke-width="14" stroke-linejoin="round" style="fill:#000"/>
+    </mask>
+  </defs>
+
+  <g transform="translate(256 214)">
+    <g mask="url(#gap)">
+      <use xlink:href="#sword" transform="rotate(42) scale(0.92) translate(0 100)"/>
+    </g>
+    <use xlink:href="#sword" transform="rotate(-42) scale(0.92) translate(0 100)"/>
+  </g>
+</svg>
