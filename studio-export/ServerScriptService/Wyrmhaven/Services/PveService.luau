@@ -359,7 +359,7 @@ local function snapshot(battle)
 			maxHealth = math.round(fighter.maxHealth),
 			shield = math.round(fighter.shield),
 			alive = fighter.alive,
-			stunned = fighter.stunTurns > 0,
+			stunned = CombatEngine.IsDisabled(fighter), -- a Stun, Freeze or Sleep holds it
 			statuses = statuses,
 		})
 	end

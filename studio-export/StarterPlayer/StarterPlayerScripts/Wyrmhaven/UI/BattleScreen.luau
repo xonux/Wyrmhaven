@@ -529,10 +529,8 @@ local function refreshBar(key)
 	bar.fill.BackgroundColor3 = share <= 0.3 and HEALTH_LOW or HEALTH_COLOR
 	local shieldShare = live.maxHealth > 0 and math.clamp(live.shield / live.maxHealth, 0, 1) or 0
 	bar.shield.Size = UDim2.fromScale(shieldShare, 1)
+	-- (a Stun, Freeze or Sleep is in the list like any other status)
 	local parts = {}
-	if live.stunned then
-		table.insert(parts, "stunned")
-	end
 	for _, status in ipairs(live.statuses or {}) do
 		local def = StatusDefs.Get(status.id)
 		local label = (def and def.DisplayName) or status.id or status.kind
@@ -781,11 +779,29 @@ local function playEvent(event)
 		floatText(event.target, "cleansed", SHIELD_COLOR)
 		return EVENT_GAP * 0.5
 	elseif event.t == "miss" then
-		floatText(event.target, "resisted", WEAK_COLOR)
+		floatText(event.target, event.reason == "Evade" and "dodged" or "missed", WEAK_COLOR)
 		return EVENT_GAP * 0.5
 	elseif event.t == "stunned" then
-		logLabel.Text = string.format("%s is stunned", event.name)
-		floatText(event.actor, "stunned", WEAK_COLOR)
+		local held = ({ Freeze = "frozen", Sleep = "asleep" })[event.status or ""] or "stunned"
+		logLabel.Text = string.format("%s is %s", event.name, held)
+		floatText(event.actor, held, WEAK_COLOR)
+		return EVENT_GAP
+	elseif event.t == "confused" then
+		logLabel.Text = string.format("%s is confused", event.name)
+		floatText(event.actor, "confused", WEAK_COLOR)
+		return EVENT_GAP * 0.5
+	elseif event.t == "immune" then
+		floatText(event.target, "immune", SHIELD_COLOR)
+		return EVENT_GAP * 0.5
+	elseif event.t == "wake" then
+		floatText(event.target, "woke up", SHIELD_COLOR)
+		return EVENT_GAP * 0.5
+	elseif event.t == "thaw" then
+		floatText(event.target, "thawed", SHIELD_COLOR)
+		return EVENT_GAP * 0.5
+	elseif event.t == "revive" then
+		logLabel.Text = string.format("%s gets back up", event.name)
+		floatText(event.target, "revived", HEALTH_COLOR)
 		return EVENT_GAP
 	elseif event.t == "pass" then
 		logLabel.Text = string.format("%s has nothing ready", event.name)

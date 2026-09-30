@@ -6,8 +6,8 @@
 -- A round gives every living dragon one turn, fastest first (Speed is
 -- re-read each round, so slows and hastes change the order). On its turn a
 -- dragon:
---   1. takes its burn damage, then its cooldowns tick down;
---   2. skips everything if it is stunned;
+--   1. takes its burn damage, heals its regen, then its cooldowns tick down;
+--   2. skips everything if it carries a control (Stun, Freeze, Sleep);
 --   3. otherwise picks a skill (options.choose, or the default policy below)
 --      and resolves it;
 --   4. its buffs, debuffs, burns and shield lose a turn.
@@ -72,8 +72,7 @@ local function spawn(entry, team, slot)
 		shieldTurns = 0,
 		skills = entry.skills,
 		cooldowns = {}, -- [skillId] = turns left before it can be used again
-		statuses = {}, -- buffs, debuffs and burns, each with `turns` left
-		stunTurns = 0,
+		statuses = {}, -- everything put on it (Config/StatusDefs), each with `turns` left
 		alive = true,
 	}
 end
@@ -186,6 +185,85 @@ local function hasStatus(fighter, kind)
 	return false
 end
 
+-- The strongest `amount` among its statuses of that kind (0 if none).
+local function amountOf(fighter, kind)
+	local best = 0
+	for _, status in ipairs(fighter.statuses) do
+		if status.kind == kind and (status.amount or 0) > best then
+			best = status.amount
+		end
+	end
+	return best
+end
+
+-- The control keeping it from acting (Stun, Freeze, Sleep), if any.
+local function controlOf(fighter)
+	for _, status in ipairs(fighter.statuses) do
+		if StatusDefs.Controls[status.kind] then
+			return status
+		end
+	end
+	return nil
+end
+
+function CombatEngine.IsDisabled(fighter)
+	return controlOf(fighter) ~= nil
+end
+
+-- Takes every status of that kind off it; returns how many went.
+local function removeKind(fighter, kind)
+	local removed = 0
+	for index = #fighter.statuses, 1, -1 do
+		if fighter.statuses[index].kind == kind then
+			table.remove(fighter.statuses, index)
+			removed += 1
+		end
+	end
+	return removed
+end
+
+-- What a hit on it is multiplied by: Expose makes it worth more, a Mega Taunt less.
+local function damageTakenFactor(fighter)
+	local reduction = 0
+	for _, status in ipairs(fighter.statuses) do
+		if status.kind == "Taunt" and status.amount then
+			reduction = math.max(reduction, status.amount)
+		end
+	end
+	return math.max(0, 1 + amountOf(fighter, "Expose") - reduction)
+end
+
+-- The dragon that must take every single-target hit: a Mega Taunt wins over
+-- a plain Taunt.
+local function taunterOf(list)
+	local plain
+	for _, fighter in ipairs(list) do
+		for _, status in ipairs(fighter.statuses) do
+			if status.kind == "Taunt" then
+				if status.amount then
+					return fighter
+				end
+				plain = plain or fighter
+			end
+		end
+	end
+	return plain
+end
+
+function Battle:isDisabled(fighter)
+	return controlOf(fighter) ~= nil
+end
+
+-- Can it use this skill right now: off cooldown, and not locked by a Silence
+-- (which leaves only the skills without a cooldown).
+function Battle:canUse(fighter, skillId)
+	local skill = SkillDefs[skillId]
+	if not skill or fighter.cooldowns[skillId] then
+		return false
+	end
+	return (skill.Cooldown or 0) == 0 or not hasStatus(fighter, "Silence")
+end
+
 function Battle:fighterByKey(key)
 	for _, fighter in ipairs(self.fighters) do
 		if fighter.key == key then
@@ -216,13 +294,26 @@ function Battle:targetsFor(actor, skill, preferredKey)
 		local target = weakest(allies)
 		return target and { target } or {}
 	end
-	-- "Enemy": a dragon that is taunting takes the hit, whoever it was meant
-	-- for - that is what makes a tank worth a slot. Otherwise the one closest
-	-- to going down.
-	for _, enemy in ipairs(enemies) do
-		if hasStatus(enemy, "Taunt") then
-			return { enemy }
+	-- "Enemy": a confused dragon may send it anywhere, its own team included.
+	local confusion = amountOf(actor, "Confuse")
+	if confusion > 0 and self.random:NextNumber() < confusion then
+		local anyone = {}
+		for _, fighter in ipairs(self:living()) do
+			if fighter ~= actor then
+				table.insert(anyone, fighter)
+			end
 		end
+		if #anyone > 0 then
+			local target = anyone[self.random:NextInteger(1, #anyone)]
+			self:record({ t = "confused", actor = actor.key, name = actor.name, target = target.key })
+			return { target }
+		end
+	end
+	-- A dragon that is taunting takes the hit, whoever it was meant for - that
+	-- is what makes a tank worth a slot. Otherwise the one closest to going down.
+	local taunter = taunterOf(enemies)
+	if taunter then
+		return { taunter }
 	end
 	if preferredKey then
 		local chosen = self:fighterByKey(preferredKey)
@@ -242,7 +333,7 @@ function Battle:previewOn(actor, skill, target)
 	local factor = ElementChart.Factor(skill.Element, target.elements)
 	local damage = 0
 	if skill.Power then
-		local raw = attackOf(actor) * skill.Power * factor
+		local raw = attackOf(actor) * skill.Power * factor * damageTakenFactor(target)
 		damage = math.min(math.max(0, raw - target.shield), target.health)
 	end
 	local heal = 0
@@ -272,11 +363,9 @@ function Battle:availableActions(fighter)
 				if skill.Target == "Enemy" then
 					-- A taunting enemy takes every single-target hit: it is then the
 					-- only one that can be aimed at, and the screen greys the rest.
-					for _, candidate in ipairs(candidates) do
-						if hasStatus(candidate, "Taunt") then
-							candidates = { candidate }
-							break
-						end
+					local taunter = taunterOf(candidates)
+					if taunter then
+						candidates = { taunter }
 					end
 				end
 				for _, candidate in ipairs(candidates) do
@@ -315,7 +404,9 @@ function Battle:availableActions(fighter)
 				element = skill.Element,
 				target = skill.Target, -- lets the screen light up who it would land on
 				cooldown = skill.Cooldown or 0,
-				ready = fighter.cooldowns[skillId] == nil,
+				ready = self:canUse(fighter, skillId),
+				-- off cooldown but locked by a Silence
+				silenced = (fighter.cooldowns[skillId] == nil and not self:canUse(fighter, skillId)) or nil,
 				turnsLeft = fighter.cooldowns[skillId],
 				targets = choices,
 			})
@@ -328,10 +419,10 @@ end
 
 -- `factor` is the element multiplier that was already applied to `amount`
 -- (ElementChart): the log carries it so the battle screen can say a hit was
--- strong or resisted.
+-- strong or resisted. Returns what actually got through the shield.
 function Battle:damage(target, amount, source, factor)
 	if amount <= 0 or not target.alive then
-		return
+		return 0
 	end
 	local absorbed = math.min(target.shield, amount)
 	target.shield -= absorbed
@@ -352,11 +443,21 @@ function Battle:damage(target, amount, source, factor)
 		effectiveness = factor and ElementChart.Label(factor) or nil,
 	})
 	if target.health <= 0 then
+		-- A Revive is spent to stay up.
+		for index, status in ipairs(target.statuses) do
+			if status.kind == "Revive" then
+				table.remove(target.statuses, index)
+				target.health = math.max(1, target.maxHealth * status.amount)
+				self:record({ t = "revive", target = target.key, name = target.name, health = math.round(target.health) })
+				return taken
+			end
+		end
 		target.alive = false
 		target.statuses = {}
-		target.shield, target.shieldTurns, target.stunTurns = 0, 0, 0
+		target.shield, target.shieldTurns = 0, 0
 		self:record({ t = "death", target = target.key, name = target.name })
 	end
+	return taken
 end
 
 function Battle:heal(target, amount)
@@ -404,6 +505,12 @@ function Battle:applyStatus(actor, landsOn, statusId, skillId)
 	end
 	local turns = def.Duration or 1
 
+	-- Nothing bad lands on an Immune dragon.
+	if StatusDefs.IsBad(statusId) and hasStatus(landsOn, "Immune") then
+		self:record({ t = "immune", target = landsOn.key, name = landsOn.name, status = statusId })
+		return
+	end
+
 	if def.Kind == "Heal" then
 		self:heal(landsOn, landsOn.maxHealth * def.Amount)
 	elseif def.Kind == "Drain" then
@@ -433,6 +540,11 @@ function Battle:applyStatus(actor, landsOn, statusId, skillId)
 			sourceKey = actor.key,
 		})
 		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId, kind = "Dot", turns = turns })
+	elseif def.Kind == "Hot" then
+		-- Locked in when it lands, off its own Health, like a burn.
+		self:addStatus(landsOn, { id = statusId, kind = "Hot", heal = landsOn.maxHealth * def.Amount, turns = turns,
+			sourceKey = actor.key })
+		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId, kind = "Hot", turns = turns })
 	elseif def.Kind == "Buff" or def.Kind == "Debuff" then
 		if def.Stat == "Health" then
 			-- Room for more Health rather than a multiplier: the bonus is handed
@@ -451,18 +563,12 @@ function Battle:applyStatus(actor, landsOn, statusId, skillId)
 		end
 		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId,
 			kind = def.Kind, stat = def.Stat, amount = def.Amount, turns = turns })
-	elseif def.Kind == "Stun" then
-		landsOn.stunTurns = math.max(landsOn.stunTurns, turns)
-		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId, kind = "Stun", turns = landsOn.stunTurns })
-	elseif def.Kind == "Taunt" then
-		self:addStatus(landsOn, { id = statusId, kind = "Taunt", turns = turns, sourceKey = actor.key })
-		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId, kind = "Taunt", turns = turns })
 	elseif def.Kind == "Cleanse" then
-		-- Everything bad, in one go.
+		-- Everything bad, in one go - controls and hindrances included.
 		local removed = 0
 		for index = #landsOn.statuses, 1, -1 do
 			local status = landsOn.statuses[index]
-			if status.kind == "Debuff" or status.kind == "Dot" then
+			if StatusDefs.IsBad(status.id) then
 				if status.stat == "Health" and status.bonus then
 					landsOn.maxHealth -= status.bonus
 					landsOn.health = math.min(landsOn.health, landsOn.maxHealth)
@@ -471,22 +577,34 @@ function Battle:applyStatus(actor, landsOn, statusId, skillId)
 				removed += 1
 			end
 		end
-		if landsOn.stunTurns > 0 then
-			landsOn.stunTurns = 0
-			removed += 1
-		end
 		self:record({ t = "cleanse", target = landsOn.key, name = landsOn.name, removed = removed })
+	else
+		-- Everything else just sits on the dragon for its turns and is read
+		-- where it matters: controls (Stun, Freeze, Sleep) in takeTurn,
+		-- Silence in canUse, Blind / Evade / Thorns / Expose on each hit,
+		-- Confuse and Taunt in targetsFor, Immune above, Revive in damage.
+		-- `amount` is kept for the ones that have one.
+		self:addStatus(landsOn, { id = statusId, kind = def.Kind, amount = def.Amount, turns = turns, sourceKey = actor.key })
+		self:record({ t = "status", target = landsOn.key, name = landsOn.name, status = statusId, kind = def.Kind, turns = turns })
 	end
 end
 
 ------------------------------------------------------------------ turns
 
--- Burn damage, then cooldowns: both happen before the dragon may act.
+-- Burn damage, regen, then cooldowns: all happen before the dragon may act.
 function Battle:startTurn(fighter)
-	for _, status in ipairs(fighter.statuses) do
-		if status.kind == "Dot" then
+	-- (a copy: a burn can take it down, which clears the list mid-loop)
+	for _, status in ipairs(table.clone(fighter.statuses)) do
+		if status.kind == "Dot" and fighter.alive then
 			self:record({ t = "burn", target = fighter.key, name = fighter.name, status = status.id, amount = math.round(status.damage) })
 			self:damage(fighter, status.damage, status.id or "Dot")
+		end
+	end
+	if fighter.alive then
+		for _, status in ipairs(fighter.statuses) do
+			if status.kind == "Hot" then
+				self:heal(fighter, status.heal)
+			end
 		end
 	end
 	for skillId, turns in pairs(fighter.cooldowns) do
@@ -525,7 +643,7 @@ end
 function Battle:defaultChoice(fighter)
 	local ready, best = {}, nil
 	for _, skillId in ipairs(fighter.skills) do
-		if not fighter.cooldowns[skillId] then
+		if self:canUse(fighter, skillId) then
 			table.insert(ready, skillId)
 		end
 	end
@@ -567,9 +685,10 @@ function Battle:takeTurn(fighter)
 	if not fighter.alive then
 		return
 	end
-	if fighter.stunTurns > 0 then
-		fighter.stunTurns -= 1
-		self:record({ t = "stunned", actor = fighter.key, name = fighter.name })
+	local control = controlOf(fighter)
+	if control then
+		-- Its turn is lost; the control ticks down with the rest in endTurn.
+		self:record({ t = "stunned", actor = fighter.key, name = fighter.name, status = control.id })
 		self:endTurn(fighter)
 		return
 	end
@@ -578,6 +697,9 @@ function Battle:takeTurn(fighter)
 	local skillId, targetKey
 	if self.choose then
 		skillId, targetKey = self.choose(fighter, self)
+	end
+	if skillId and not self:canUse(fighter, skillId) then
+		skillId = nil -- on cooldown or silenced: the default policy picks instead
 	end
 	skillId = skillId or self:defaultChoice(fighter)
 	local skill = skillId and SkillDefs[skillId]
@@ -599,16 +721,48 @@ function Battle:takeTurn(fighter)
 		fighter.cooldowns[skillId] = skill.Cooldown + 1
 	end
 
+	local blind = amountOf(fighter, "Blind")
 	for _, target in ipairs(targets) do
 		-- Each target answers to the skill's element on its own (a hybrid on
 		-- both of its halves).
 		local factor = ElementChart.Factor(skill.Element, target.elements)
-		if skill.Power then
-			self:damage(target, attackOf(fighter) * skill.Power * factor, skillId, factor)
+		local lands = true
+		if skill.Power and target ~= fighter then
+			-- An attack can miss (its attacker is Blind) or be dodged (Evade);
+			-- then nothing of it lands on that dragon.
+			if blind > 0 and self.random:NextNumber() < blind then
+				lands = false
+				self:record({ t = "miss", actor = fighter.key, target = target.key, name = target.name, reason = "Blind" })
+			elseif amountOf(target, "Evade") > 0 and self.random:NextNumber() < amountOf(target, "Evade") then
+				lands = false
+				self:record({ t = "miss", actor = fighter.key, target = target.key, name = target.name, reason = "Evade" })
+			end
 		end
-		for _, statusId in ipairs(skill.Effects or {}) do
-			self:applyStatus(fighter, target, statusId, skillId)
+		if lands then
+			if skill.Power then
+				local taken = self:damage(target, attackOf(fighter) * skill.Power * factor * damageTakenFactor(target), skillId, factor)
+				if taken > 0 and target.alive then
+					-- A hit wakes a sleeper, and a Fire hit thaws ice.
+					if removeKind(target, "Sleep") > 0 then
+						self:record({ t = "wake", target = target.key, name = target.name })
+					end
+					if skill.Element == "Fire" and removeKind(target, "Freeze") > 0 then
+						self:record({ t = "thaw", target = target.key, name = target.name })
+					end
+				end
+				-- Thorns send part of the hit back (never a hit of its own).
+				local thorns = amountOf(target, "Thorns")
+				if taken > 0 and thorns > 0 and target ~= fighter and fighter.alive then
+					self:damage(fighter, taken * thorns, "Thorns")
+				end
+			end
+			for _, statusId in ipairs(skill.Effects or {}) do
+				self:applyStatus(fighter, target, statusId, skillId)
+			end
 		end
+	end
+	if not fighter.alive then
+		return -- Thorns took it down: nothing more for it this turn
 	end
 	-- What the caster does to itself happens once, however many it hit.
 	for _, statusId in ipairs(skill.SelfEffects or {}) do
@@ -759,7 +913,19 @@ function CombatEngine.FormatLog(result)
 		elseif event.t == "cleanse" then
 			table.insert(lines, string.format("   %s shakes off %d effect(s)", event.name, event.removed))
 		elseif event.t == "stunned" then
-			table.insert(lines, string.format("%s (%s) is stunned and skips its turn", event.name, event.actor))
+			table.insert(lines, string.format("%s (%s) is held by %s and skips its turn", event.name, event.actor, event.status or "Stun"))
+		elseif event.t == "miss" then
+			table.insert(lines, string.format("   %s %s", event.name, event.reason == "Evade" and "dodges" or "is missed (Blind)"))
+		elseif event.t == "confused" then
+			table.insert(lines, string.format("   %s is confused and turns on %s", event.name, event.target))
+		elseif event.t == "immune" then
+			table.insert(lines, string.format("   %s is immune to %s", event.name, event.status))
+		elseif event.t == "wake" then
+			table.insert(lines, string.format("   %s wakes up", event.name))
+		elseif event.t == "thaw" then
+			table.insert(lines, string.format("   %s thaws out", event.name))
+		elseif event.t == "revive" then
+			table.insert(lines, string.format("   %s gets back up with %d Health", event.name, event.health))
 		elseif event.t == "pass" then
 			table.insert(lines, string.format("%s (%s) has nothing ready", event.name, event.actor))
 		elseif event.t == "death" then

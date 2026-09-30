@@ -36,7 +36,12 @@ local WEIGHTS = {
 	stun = 1, -- a stolen turn is worth that dragon's Attack
 	taunt = 0.55, -- a hit taken for someone else
 	cleanse = 0.25, -- per debuff lifted, as a share of max Health
+	guard = 0.5, -- per point of damage a defence (Thorns, Evade, Immune...) is expected to save or send back
 }
+
+-- How much of each stolen turn a control is worth: a Freeze can be thawed by
+-- Fire and a Sleep breaks on the first hit, so neither is sure to last.
+local CONTROL_WORTH = { Stun = 1, Freeze = 0.85, Sleep = 0.5 }
 
 local TUNING = {
 	Easy = { random = true },
@@ -124,6 +129,13 @@ local function price(skillId, fighter, battle, allies, enemies, tuning)
 			return
 		end
 		local duration = def.Duration or 1
+		-- Who a good status lands on (for the defences below).
+		local receivers = onSelf and { fighter }
+			or (skill.Target == "AllAllies" and allies)
+			or { skill.Target == "Self" and fighter or hurt }
+		-- What the enemy side hits for in a turn, split over our dragons.
+		local incoming = sumAttack(enemies) / math.max(1, #allies)
+		local share = skill.Target == "AllEnemies" and 1 or 1 / math.max(1, #enemies)
 		if def.Kind == "Heal" then
 			local receivers = onSelf and { fighter }
 				or (skill.Target == "AllAllies" and allies)
@@ -185,15 +197,15 @@ local function price(skillId, fighter, battle, allies, enemies, tuning)
 			end
 		elseif def.Kind == "Buff" or def.Kind == "Debuff" then
 			value += attack * def.Amount * duration * WEIGHTS.speedSwing
-		elseif def.Kind == "Stun" then
+		elseif StatusDefs.Controls[def.Kind] then
 			local victim = nil
 			for _, enemy in ipairs(enemies) do
-				if enemy.stunTurns <= 0 and (not victim or enemy.baseAttack > victim.baseAttack) then
+				if not battle:isDisabled(enemy) and (not victim or enemy.baseAttack > victim.baseAttack) then
 					victim = enemy
 				end
 			end
 			if victim then
-				value += victim.baseAttack * duration * WEIGHTS.stun
+				value += victim.baseAttack * duration * WEIGHTS.stun * (CONTROL_WORTH[def.Kind] or 1)
 					* (skill.Target == "AllEnemies" and #enemies or 1)
 				if skill.Target == "Enemy" then
 					targetKey = victim.key
@@ -210,13 +222,44 @@ local function price(skillId, fighter, battle, allies, enemies, tuning)
 				end
 			end
 			if weakerAllies > 0 and fighter.health > incoming * 0.5 then
-				value += incoming * WEIGHTS.taunt
+				value += incoming * WEIGHTS.taunt * (1 + (def.Amount or 0))
 			end
 		elseif def.Kind == "Cleanse" then
 			-- It clears everything bad, so it is worth what is there to clear.
 			local receiver = (onSelf or skill.Target == "Self") and fighter or hurt
-			local removable = statusCount(receiver, "Debuff") + statusCount(receiver, "Dot")
+			local removable = 0
+			for _, status in ipairs(receiver.statuses) do
+				if StatusDefs.IsBad(status.id) then
+					removable += 1
+				end
+			end
 			value += removable * receiver.maxHealth * WEIGHTS.cleanse
+		elseif def.Kind == "Hot" then
+			for _, receiver in ipairs(receivers) do
+				value += math.min(receiver.maxHealth * def.Amount * duration, receiver.maxHealth - receiver.health) * WEIGHTS.heal
+			end
+		elseif def.Kind == "Silence" then
+			-- Worth what its big skills would have done.
+			value += sumAttack(enemies) * share * duration * WEIGHTS.stun * 0.4
+		elseif def.Kind == "Blind" or def.Kind == "Confuse" then
+			-- Like an Attack debuff of that share (a Confuse only misfires some of the time).
+			value += sumAttack(enemies) * share * def.Amount * duration * WEIGHTS.attackSwing * (def.Kind == "Confuse" and 0.7 or 1)
+		elseif def.Kind == "Expose" then
+			-- Every hit our side lands on it is worth more.
+			value += sumAttack(allies) * share * def.Amount * duration * WEIGHTS.attackSwing
+		elseif def.Kind == "Thorns" or def.Kind == "Evade" then
+			for _ in ipairs(receivers) do
+				value += incoming * def.Amount * duration * WEIGHTS.guard
+			end
+		elseif def.Kind == "Immune" then
+			for _, receiver in ipairs(receivers) do
+				value += receiver.maxHealth * 0.05 * duration * WEIGHTS.guard
+			end
+		elseif def.Kind == "Revive" then
+			-- Worth more the closer it is to going down.
+			for _, receiver in ipairs(receivers) do
+				value += receiver.maxHealth * def.Amount * (1 - healthShare(receiver)) * WEIGHTS.heal
+			end
 		end
 	end
 
@@ -241,7 +284,7 @@ function CombatAI.Policy(difficulty, seed)
 		end
 		local ready = {}
 		for _, skillId in ipairs(fighter.skills) do
-			if not fighter.cooldowns[skillId] and SkillDefs[skillId] then
+			if battle:canUse(fighter, skillId) then
 				table.insert(ready, skillId)
 			end
 		end
