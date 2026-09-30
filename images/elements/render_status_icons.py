@@ -22,7 +22,9 @@ INK = (24, 18, 28)
 FILLS = {
     "buff": ((47, 152, 98), (-0.21, -0.33, -0.21)),
     "debuff": ((153, 40, 62), (-0.38, -0.14, -0.13)),
+    "attribute": ((44, 118, 205), (-0.15, -0.35, -0.45)),  # passive traits (images/attributes)
 }
+GOLD = (252, 206, 72)
 YELLOW = (252, 206, 72)
 GREEN_ARROW = (70, 214, 96)
 RED_ARROW = (236, 56, 56)
@@ -116,13 +118,14 @@ def heart(cx, cy, s):
 
 def shield(cx=0.5, top=0.17, w=0.46, bottom=0.84):
     l, r = cx - w / 2, cx + w / 2
+    h = (bottom - top) / 0.67  # proportions of the default 0.17 -> 0.84 shield
     return path((cx, top), [
-        [(cx - w * 0.2, top + 0.05), (l, top + 0.06)],
-        [(l, top + 0.25)],
-        [(l, top + 0.45), (cx - w * 0.2, bottom - 0.08), (cx, bottom)],
-        [(cx + w * 0.2, bottom - 0.08), (r, top + 0.45), (r, top + 0.25)],
-        [(r, top + 0.06)],
-        [(cx + w * 0.2, top + 0.05), (cx, top)],
+        [(cx - w * 0.2, top + 0.05 * h), (l, top + 0.06 * h)],
+        [(l, top + 0.25 * h)],
+        [(l, top + 0.45 * h), (cx - w * 0.2, bottom - 0.08 * h), (cx, bottom)],
+        [(cx + w * 0.2, bottom - 0.08 * h), (r, top + 0.45 * h), (r, top + 0.25 * h)],
+        [(r, top + 0.06 * h)],
+        [(cx + w * 0.2, top + 0.05 * h), (cx, top)],
     ])
 
 
@@ -164,15 +167,24 @@ class Layer:
         return self.line(pts, w, hole)
 
 
-def stamp(img, layers):
-    """Composite glyph layers: drop shadow, dark outline, white fill each."""
+def fit(im, scale, dx=0.0, dy=0.0, center=(0.5, 0.5)):
+    """Scale an image about center (unit coords) and shift it by dx, dy."""
+    cx, cy = center[0] * S, center[1] * S
+    ox, oy = cx + dx * S, cy + dy * S
+    return im.transform((S, S), Image.AFFINE, (1 / scale, 0, cx - ox / scale, 0, 1 / scale, cy - oy / scale), Image.BICUBIC)
+
+
+def stamp(img, layers, xf=None):
+    """Composite glyph layers: drop shadow, dark outline, white fill each.
+    xf: optional (scale, dx, dy) applied to the whole glyph."""
     for lay in layers:
-        a = lay.img.getchannel("A")
+        src = fit(lay.img, *xf) if xf else lay.img
+        a = src.getchannel("A")
         outline = a.filter(ImageFilter.MaxFilter(q(6) | 1))
         shadow = outline.filter(ImageFilter.GaussianBlur(q(2))).point(lambda v: v * 0.35)
         img.alpha_composite(solid((0, 0, 0), shadow), (0, q(2)))
         img.alpha_composite(solid(INK, outline))
-        img.alpha_composite(lay.img)
+        img.alpha_composite(src)
 
 
 # ------------------------------------------------------------------ modifiers
@@ -205,6 +217,11 @@ def arrow_pts(cx, top, bottom, w, up=True):
         mid = (top + bottom) / 2
         pts = [(x, 2 * mid - y) for x, y in pts]
     return pts
+
+
+def ward(img):
+    """Small gold shield: 'protected against' this glyph (attributes)."""
+    outlined(img, shield(cx=0.785, top=0.6, w=0.24, bottom=0.9), GOLD)
 
 
 def arrows(img, n, up):
@@ -346,6 +363,82 @@ def g_confuse():
     return [sp]
 
 
+def drop(lay, cx, cy, r, tip, hole=False):
+    """Water drop: circle of radius r at (cx, cy) with a point at height tip."""
+    lay.circle(cx, cy, r, hole)
+    d = cy - tip
+    t = math.acos(min(0.999, r / d))
+    lay.poly([(cx, tip), (cx + r * math.sin(t), cy - r * math.cos(t)), (cx, cy), (cx - r * math.sin(t), cy - r * math.cos(t))], hole)
+    return lay
+
+
+def g_target():
+    t = Layer().circle(0.5, 0.5, 0.33).circle(0.5, 0.5, 0.25, hole=True)
+    t.circle(0.5, 0.5, 0.18).circle(0.5, 0.5, 0.11, hole=True).circle(0.5, 0.5, 0.055)
+    return [t]
+
+
+def g_megataunt():
+    burst = Layer().poly(star(0.5, 0.5, 0.4, 0.29, n=12))
+    target = g_target()
+    for lay in target:
+        lay.img = fit(lay.img, 0.82)
+    return [burst] + target
+
+
+def g_flame():
+    f = Layer().poly(path((0.5, 0.83), [
+        [(0.31, 0.83), (0.25, 0.64), (0.32, 0.5)],
+        [(0.36, 0.42), (0.37, 0.36), (0.35, 0.29)],
+        [(0.44, 0.33), (0.47, 0.39), (0.47, 0.45)],
+        [(0.51, 0.35), (0.6, 0.29), (0.56, 0.15)],
+        [(0.71, 0.27), (0.76, 0.5), (0.73, 0.63)],
+        [(0.71, 0.77), (0.62, 0.83), (0.5, 0.83)],
+    ]))
+    drop(f, 0.5, 0.69, 0.085, 0.49, hole=True)
+    return [f]
+
+
+def g_skull():
+    s_ = Layer().circle(0.5, 0.42, 0.27)
+    s_.d.rounded_rectangle([P(0.34, 0.5), P(0.66, 0.82)], radius=int(0.04 * S), fill=WHITE)
+    s_.circle(0.4, 0.45, 0.075, hole=True).circle(0.6, 0.45, 0.075, hole=True)
+    s_.poly([(0.5, 0.54), (0.535, 0.61), (0.465, 0.61)], hole=True)
+    for x in (0.42, 0.5, 0.58):
+        s_.d.rectangle([P(x - 0.012, 0.7), P(x + 0.012, 0.83)], fill=CLEAR)
+    return [s_]
+
+
+def g_bleed():
+    d = Layer()
+    drop(d, 0.42, 0.62, 0.2, 0.16)
+    drop(d, 0.68, 0.36, 0.065, 0.2)
+    drop(d, 0.7, 0.66, 0.075, 0.48)
+    return [d]
+
+
+def g_stun():
+    st = Layer().poly(star(0.5, 0.36, 0.2, 0.085, n=5))
+    ring = Layer().ellipse((0.15, 0.58, 0.85, 0.8)).ellipse((0.21, 0.62, 0.79, 0.76), hole=True)
+    ring.poly(star(0.18, 0.69, 0.07, 0.03, n=5)).poly(star(0.82, 0.69, 0.07, 0.03, n=5))
+    return [ring, st]
+
+
+def g_ffwd():
+    f = Layer().poly([(0.14, 0.27), (0.46, 0.5), (0.14, 0.73)]).poly([(0.44, 0.27), (0.78, 0.5), (0.44, 0.73)])
+    return [f]
+
+
+def g_sword():
+    s_ = Layer()
+    s_.line([(0.3, 0.7), (0.7, 0.3)], 0.105, caps=False)
+    s_.poly([(0.66, 0.26), (0.84, 0.16), (0.74, 0.34)])  # point
+    s_.line([(0.2, 0.57), (0.43, 0.8)], 0.075)  # crossguard
+    s_.line([(0.31, 0.69), (0.2, 0.8)], 0.06)  # grip
+    s_.circle(0.17, 0.83, 0.055)
+    return [s_]
+
+
 STATUSES = {
     # name: (kind, glyph, modifier)  - modifier: ("diamonds", n) / ("up", n) / ("down", n) / None
     "Regen": ("buff", g_regen, None),
@@ -360,6 +453,7 @@ STATUSES = {
     "Blind": ("debuff", g_blind, None),
     "Expose": ("debuff", g_expose, None),
     "Confuse": ("debuff", g_confuse, None),
+    "MegaTaunt": ("buff", g_megataunt, None),
 }
 
 
