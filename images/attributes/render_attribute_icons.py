@@ -3,7 +3,7 @@ style, on a blue tile. "...Ward" attributes protect against a status or a
 family of statuses: the status glyph with a small gold shield in the corner.
 Every ward matches a bad status of Config/StatusDefs (keep the two in step);
 DotWard / ControlWard / DebuffWard cover a whole family, future ones included.
-Uses the tile/glyph kit of images/elements/render_status_icons.py.
+Uses the tile/glyph kit of images/statuses/render_status_icons.py.
 Output: <Attribute>.png (256px) next to this script.
 """
 import math
@@ -13,7 +13,7 @@ import sys
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "elements"))
+sys.path.insert(0, os.path.join(HERE, "..", "statuses"))
 import render_status_icons as K  # noqa: E402
 from render_status_icons import Layer, bezier, fit, star  # noqa: E402
 
