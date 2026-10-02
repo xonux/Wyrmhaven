@@ -38,28 +38,6 @@ def g_wither():
     return [Layer().poly(K.heart(0.5, 0.5, 0.3))]
 
 
-def g_chain():
-    """Broken chain: free from every control."""
-    c = Layer()
-
-    def link(cx, cy, rx, ry, w, ang):
-        a = math.radians(ang)
-        for r_x, r_y, hole in ((rx, ry, False), (rx - w, ry - w, True)):
-            pts = []
-            for i in range(64):
-                t = i / 64 * math.tau
-                x, y = r_x * math.cos(t), r_y * math.sin(t)
-                pts.append((cx + x * math.cos(a) - y * math.sin(a), cy + x * math.sin(a) + y * math.cos(a)))
-            c.poly(pts, hole)
-
-    link(0.31, 0.69, 0.21, 0.135, 0.08, -45)
-    link(0.69, 0.31, 0.21, 0.135, 0.08, -45)
-    sparks = Layer()
-    for (x0, y0, x1, y1) in ((0.44, 0.44, 0.36, 0.36), (0.56, 0.56, 0.64, 0.64)):
-        sparks.line([(x0, y0), (x1, y1)], 0.04)
-    return [c, sparks]
-
-
 ATTRIBUTES = {
     # name: (glyph, warded)
     "Taunt": (K.g_target, False),
@@ -78,7 +56,7 @@ ATTRIBUTES = {
     "StunWard": (K.g_stun, True),
     "FreezeWard": (K.g_freeze, True),
     "SleepWard": (K.g_sleep, True),
-    "ControlWard": (g_chain, True),
+    "ControlWard": (K.g_chain, True),
     # hindrances
     "SilenceWard": (K.g_silence, True),
     "BlindWard": (K.g_blind, True),

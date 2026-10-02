@@ -465,8 +465,36 @@ def g_counter():
     return [arc] + sw
 
 
+def g_chain():
+    """Broken chain: free from every control."""
+    c = Layer()
+
+    def link(cx, cy, rx, ry, w, ang):
+        a = math.radians(ang)
+        for r_x, r_y, hole in ((rx, ry, False), (rx - w, ry - w, True)):
+            pts = []
+            for i in range(64):
+                t = i / 64 * math.tau
+                x, y = r_x * math.cos(t), r_y * math.sin(t)
+                pts.append((cx + x * math.cos(a) - y * math.sin(a), cy + x * math.sin(a) + y * math.cos(a)))
+            c.poly(pts, hole)
+
+    link(0.31, 0.69, 0.21, 0.135, 0.08, -45)
+    link(0.69, 0.31, 0.21, 0.135, 0.08, -45)
+    sparks = Layer()
+    for (x0, y0, x1, y1) in ((0.44, 0.44, 0.36, 0.36), (0.56, 0.56, 0.64, 0.64)):
+        sparks.line([(x0, y0), (x1, y1)], 0.04)
+    return [c, sparks]
+
+
+
+
+WARDED = (0.8, -0.06, -0.06)  # glyph scale / shift leaving room for the ward badge
+
+
 STATUSES = {
-    # name: (kind, glyph, modifier)  - modifier: ("diamonds", n) / ("up", n) / ("down", n) / None
+    # name: (kind, glyph, modifier)  - modifier: ("diamonds", n) / ("up", n) / ("down", n)
+    # / ("ward",) (glyph shrunk, gold shield in the corner) / None
     "Regen": ("buff", g_regen, None),
     "Vigor": ("buff", g_vigor, ("up", 1)),
     "Thorns": ("buff", g_thorns, None),
@@ -483,13 +511,23 @@ STATUSES = {
     "Lifesteal": ("buff", g_lifesteal, None),
     "Counter": ("buff", g_counter, None),
 }
+# Protections against the controls, as buffs (same glyphs as the attribute
+# wards in images/attributes, on the green status tile).
+STATUSES.update({
+    "StunWard": ("buff", g_stun, ("ward",)),
+    "FreezeWard": ("buff", g_freeze, ("ward",)),
+    "SleepWard": ("buff", g_sleep, ("ward",)),
+    "ControlWard": ("buff", g_chain, ("ward",)),  # every control at once
+})
 
 
 def render(kind, glyph, mod):
     img = tile(kind)
-    stamp(img, glyph())
+    stamp(img, glyph(), WARDED if mod and mod[0] == "ward" else None)
     if mod:
-        if mod[0] == "diamonds":
+        if mod[0] == "ward":
+            ward(img)
+        elif mod[0] == "diamonds":
             diamonds(img, mod[1])
         else:
             arrows(img, mod[1], mod[0] == "up")

@@ -6,7 +6,7 @@ Each folder keeps the script that draws its icons, to tweak and re-render.
 | Folder | What | Size |
 |---|---|---|
 | `elements/` | Element badges (round): Fire, Water, Nature, Earth, Electric, Metal, Dark, Light | 512 |
-| `statuses/` | Combat status icons (rounded squares: green = good, crimson = bad), incl. Mega Taunt, Lifesteal, Counter | 256 |
+| `statuses/` | Combat status icons (rounded squares: green = good, crimson = bad), incl. Mega Taunt, Lifesteal, Counter and the control protections as buffs (StunWard, FreezeWard, SleepWard, ControlWard). `_preview.png` shows them all (`make_preview.py`) | 256 |
 | `attributes/` | Passive attributes, blue tiles; `...Ward` = protected against that status (gold shield), DotWard / ControlWard / DebuffWard = a whole family | 256 |
 | `rarities/` | Rarity badges: round, letter C / R / E / L | 512 |
 | `rarity-hex/` | Rarity badges, alternative: flat hexagons with the letter | 512 |
