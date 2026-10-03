@@ -14,6 +14,7 @@ Each folder keeps the script that draws its icons, to tweak and re-render.
 | `rarity-star/` | 4-pointed star, one arm per rarity color | 512 |
 | `shop/` | Shop tab icons (Dragons, Habitats, Buildings, Decorations) | — |
 | `ui/` | Other UI icons: Combat, Shovel (flat, SVG source + PNG); Plus (white + on a green rounded button), ArrowUp (green up arrow, status-arrow style) from `render_buttons.py` | 512 |
+| `logo/` | Game logo: "WYRMHAVEN" in arched fire-gold letters over dragon wings. `Logo.png` (round, mobile-game font), `Logo_Fantasy.png` (fantasy serif), both transparent | 2336 wide |
 | `illustrations/open-book/` | Illustration (not an icon): open book with an ink drawing of the baby fire dragon on the left page. `OpenBook.png` transparent, `OpenBook_preview.png` on a backdrop | 2400×1600 |
 
 Files starting with `_preview` are contact sheets for review, not game assets.
