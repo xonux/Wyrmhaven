@@ -13,7 +13,7 @@ Each folder keeps the script that draws its icons, to tweak and re-render.
 | `rarity-shards/` | One crystal shard per rarity | 512 |
 | `rarity-star/` | 4-pointed star, one arm per rarity color | 512 |
 | `shop/` | Shop tab icons (Dragons, Habitats, Buildings, Decorations) | — |
-| `ui/` | Other UI icons (Combat) | — |
+| `ui/` | Other UI icons, flat style: Combat, Shovel (SVG source + 512px PNG) | 512 |
 | `illustrations/open-book/` | Illustration (not an icon): open book with an ink drawing of the baby fire dragon on the left page. `OpenBook.png` transparent, `OpenBook_preview.png` on a backdrop | 2400×1600 |
 
 Files starting with `_preview` are contact sheets for review, not game assets.
