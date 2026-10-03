@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Shovel icon, same flat style as Combat.svg: no outline, no highlights,
+       a few flat colours, each part split in a light and a shaded half.
+       Drawn upright (blade down), then tilted so the grip sits top right. -->
+  <g transform="translate(256 256) rotate(40) scale(0.94)">
+    <!-- D grip -->
+    <path fill-rule="evenodd" fill="#5a3a26"
+          d="M-48 -262 h96 a18 18 0 0 1 18 18 v22 a18 18 0 0 1 -18 18 h-34 v14 h-28 v-14 h-34 a18 18 0 0 1 -18 -18 v-22 a18 18 0 0 1 18 -18 Z
+             M-30 -244 h60 v22 h-60 Z"/>
+    <!-- wooden shaft -->
+    <rect x="-13" y="-192" width="13" height="218" fill="#c58b52"/>
+    <rect x="0" y="-192" width="13" height="218" fill="#9c6a3b"/>
+    <!-- brass collar -->
+    <path d="M-17 14 L0 14 L0 66 L-27 66 Z" fill="#e3b45a"/>
+    <path d="M0 14 L17 14 L27 66 L0 66 Z" fill="#c4913a"/>
+    <!-- blade -->
+    <path d="M0 58 L-60 64 Q-76 66 -76 82 L-76 160 Q-76 206 0 250 Z" fill="#e6ebf0"/>
+    <path d="M0 58 L60 64 Q76 66 76 82 L76 160 Q76 206 0 250 Z" fill="#aab6c3"/>
+  </g>
+</svg>
