@@ -1,8 +1,8 @@
-"""Builds the final Roblox images from the 2D SVGs (scene.py -> *.svg,
+"""Builds the final Roblox images from the 2D SVGs (keyart.py -> *.svg,
 render_svg.cjs -> PNG):
 - Icon.png 512x512, Thumbnail_Clean.png 1920x1080 (no text),
 - Thumbnail.png: the same with the white logo (../logo/Logo_White.png) top
-  left and a soft dark shadow so it reads on the light sky,
+  centred at the top, with a soft dark shadow so it reads on the light sky,
 - _preview_icon.png: the icon with Roblox's rounded corners at 512/150/50 px.
 Needs `npm i playwright-core` here (or NODE_PATH pointing to it)."""
 import os
@@ -22,19 +22,19 @@ def svg_to_png(name):
 
 
 def main():
-    subprocess.run(["python3", os.path.join(HERE, "scene.py")], check=True)
+    subprocess.run(["python3", os.path.join(HERE, "keyart.py")], check=True)
     icon = svg_to_png("Icon").convert("RGB").resize((512, 512), Image.LANCZOS)
     icon.save(os.path.join(HERE, "Icon.png"))
 
     thumb = svg_to_png("Thumbnail")
     thumb.convert("RGB").save(os.path.join(HERE, "Thumbnail_Clean.png"))
     logo = Image.open(os.path.join(HERE, "..", "logo", "Logo_White.png")).convert("RGBA")
-    w = 700
+    w = 760
     logo = logo.resize((w, int(logo.height * w / logo.width)), Image.LANCZOS)
-    pos = (70, 46)
+    pos = ((thumb.width - w) // 2, 40)
     shadow = Image.new("L", thumb.size, 0)
     shadow.paste(logo.getchannel("A"), pos)
-    shadow = shadow.filter(ImageFilter.GaussianBlur(16)).point(lambda v: min(255, int(v * 0.85)))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18)).point(lambda v: min(255, int(v * 1.1)))
     thumb.alpha_composite(Image.merge("RGBA", (Image.new("L", thumb.size, 16), Image.new("L", thumb.size, 34),
                                                 Image.new("L", thumb.size, 58), shadow)))
     thumb.alpha_composite(logo, pos)
