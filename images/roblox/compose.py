@@ -1,10 +1,10 @@
-"""Builds the final Roblox images from the 2D SVGs (keyart.py -> *.svg,
-render_svg.cjs -> PNG):
+"""Builds the final Roblox images from the 3D renders of the game's own
+models (render3d.cjs: scene3d.html -> _Icon_raw.png, _Thumbnail_raw.png):
 - Icon.png 512x512, Thumbnail_Clean.png 1920x1080 (no text),
 - Thumbnail.png: the same with the white logo (../logo/Logo_White.png) top
   centred at the top, with a soft dark shadow so it reads on the light sky,
 - _preview_icon.png: the icon with Roblox's rounded corners at 512/150/50 px.
-Needs `npm i playwright-core` here (or NODE_PATH pointing to it)."""
+Needs `npm i three playwright-core` here."""
 import os
 import subprocess
 
@@ -13,20 +13,23 @@ from PIL import Image, ImageDraw, ImageFilter
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def svg_to_png(name):
-    out = os.path.join(HERE, f"_{name}_raw.png")
-    subprocess.run(["node", os.path.join(HERE, "render_svg.cjs"), os.path.join(HERE, f"{name}.svg"), out], check=True)
-    img = Image.open(out).convert("RGBA")
-    os.remove(out)
+def render():
+    subprocess.run(["node", os.path.join(HERE, "render3d.cjs")], check=True)
+
+
+def raw(name):
+    path = os.path.join(HERE, f"_{name}_raw.png")
+    img = Image.open(path).convert("RGBA")
+    os.remove(path)
     return img
 
 
 def main():
-    subprocess.run(["python3", os.path.join(HERE, "keyart.py")], check=True)
-    icon = svg_to_png("Icon").convert("RGB").resize((512, 512), Image.LANCZOS)
+    render()
+    icon = raw("Icon").convert("RGB").resize((512, 512), Image.LANCZOS)
     icon.save(os.path.join(HERE, "Icon.png"))
 
-    thumb = svg_to_png("Thumbnail")
+    thumb = raw("Thumbnail")
     thumb.convert("RGB").save(os.path.join(HERE, "Thumbnail_Clean.png"))
     logo = Image.open(os.path.join(HERE, "..", "logo", "Logo_White.png")).convert("RGBA")
     w = 760
