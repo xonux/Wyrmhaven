@@ -1,22 +1,32 @@
-"""Final Roblox images from the scene.html renders (run render.cjs first):
-- Icon.png: 512x512 (Roblox game icon), from Icon_raw.png (1024).
-- Thumbnail.png: 1920x1080 (16:9 game thumbnail) with the white logo
-  (../logo/Logo_White.png) top left, a soft dark shadow under it so it reads
-  on the light sky; Thumbnail_Clean.png: the same without text.
-- _preview_icon.png: the icon as Roblox shows it (rounded corners) at 512,
-  150 and 50 px, to check it still reads small."""
+"""Builds the final Roblox images from the 2D SVGs (scene.py -> *.svg,
+render_svg.cjs -> PNG):
+- Icon.png 512x512, Thumbnail_Clean.png 1920x1080 (no text),
+- Thumbnail.png: the same with the white logo (../logo/Logo_White.png) top
+  left and a soft dark shadow so it reads on the light sky,
+- _preview_icon.png: the icon with Roblox's rounded corners at 512/150/50 px.
+Needs `npm i playwright-core` here (or NODE_PATH pointing to it)."""
 import os
+import subprocess
 
 from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def svg_to_png(name):
+    out = os.path.join(HERE, f"_{name}_raw.png")
+    subprocess.run(["node", os.path.join(HERE, "render_svg.cjs"), os.path.join(HERE, f"{name}.svg"), out], check=True)
+    img = Image.open(out).convert("RGBA")
+    os.remove(out)
+    return img
+
+
 def main():
-    icon = Image.open(os.path.join(HERE, "Icon_raw.png")).convert("RGB").resize((512, 512), Image.LANCZOS)
+    subprocess.run(["python3", os.path.join(HERE, "scene.py")], check=True)
+    icon = svg_to_png("Icon").convert("RGB").resize((512, 512), Image.LANCZOS)
     icon.save(os.path.join(HERE, "Icon.png"))
 
-    thumb = Image.open(os.path.join(HERE, "Thumbnail_raw.png")).convert("RGBA")
+    thumb = svg_to_png("Thumbnail")
     thumb.convert("RGB").save(os.path.join(HERE, "Thumbnail_Clean.png"))
     logo = Image.open(os.path.join(HERE, "..", "logo", "Logo_White.png")).convert("RGBA")
     w = 700
@@ -30,7 +40,6 @@ def main():
     thumb.alpha_composite(logo, pos)
     thumb.convert("RGB").save(os.path.join(HERE, "Thumbnail.png"))
 
-    # icon as shown on Roblox (rounded square) at three sizes
     sheet = Image.new("RGB", (512 + 150 + 50 + 80, 532), (25, 27, 31))
     x = 20
     for size in (512, 150, 50):
