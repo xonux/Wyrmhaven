@@ -1,0 +1,123 @@
+<!doctype html>
+<html><body style="margin:0;background:transparent">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// Roblox page art built ONLY from the game's own models:
+// - the island: every part IslandService builds (scenery + obstacles),
+//   game-models/island_parts.json (extract_island.py);
+// - the Fire Baby and Adult: DragonBuilder's triangles,
+//   game-models/fire_dragons.json (extract_dragons.py);
+// - eggs: DragonService's egg, a ball sized DragonDefs Egg (2 x 2.6 x 2) in
+//   each element's StageColors.Egg.
+import * as THREE from 'three';
+
+const PARTS = await (await fetch('game-models/island_parts.json')).json();
+const DRAGONS = await (await fetch('game-models/fire_dragons.json')).json();
+const EGG = { Fire: [232, 68, 42], Water: [27, 90, 158], Nature: [46, 125, 50], Electric: [200, 150, 20], Dark: [58, 36, 86] };
+
+const lin = c => Math.pow(c, 2.2);
+const smooth = (r, g, b) => new THREE.MeshStandardMaterial({ color: new THREE.Color(lin(r), lin(g), lin(b)), roughness: 0.85, metalness: 0, flatShading: true });
+
+function island(scene) {
+  for (const p of PARTS) {
+    const [sx, sy, sz] = p.size;
+    let geo;
+    if (p.shape === 'Cylinder') { // Roblox cylinders run along X
+      geo = new THREE.CylinderGeometry(Math.min(sy, sz) / 2, Math.min(sy, sz) / 2, sx, 48);
+      geo.rotateZ(Math.PI / 2);
+    } else if (p.shape === 'Ball') {
+      geo = new THREE.SphereGeometry(Math.min(sx, sy, sz) / 2, 24, 16);
+    } else {
+      geo = new THREE.BoxGeometry(sx, sy, sz);
+    }
+    const m = new THREE.Mesh(geo, smooth(...p.color));
+    const r = p.rot;
+    m.matrixAutoUpdate = false;
+    m.matrix.set(r[0], r[1], r[2], p.pos[0], r[3], r[4], r[5], p.pos[1], r[6], r[7], r[8], p.pos[2], 0, 0, 0, 1);
+    m.castShadow = p.size[0] * p.size[2] < 2000; m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
+function dragon(stage) {
+  const d = DRAGONS[stage];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(d.pos, 3));
+  const col = [];
+  for (let i = 0; i < d.col.length; i += 3) for (let k = 0; k < 3; k++) col.push(lin(d.col[i]), lin(d.col[i + 1]), lin(d.col[i + 2]));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8, side: THREE.DoubleSide }));
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+function egg(scene, element, x, z, yaw = 0) {
+  const [r, g, b] = EGG[element].map(v => v / 255);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), smooth(r, g, b));
+  m.material.flatShading = false; m.material.roughness = 0.6;
+  m.scale.set(1, 1.3, 1); m.position.set(x, 3 + 1.3, z); m.rotation.y = yaw;
+  m.castShadow = true; m.receiveShadow = true; scene.add(m);
+}
+
+function world() {
+  const scene = new THREE.Scene();
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const x = c.getContext('2d'); const gr = x.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#5aa9e6'); gr.addColorStop(1, '#cfe9f8'); x.fillStyle = gr; x.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t;
+  scene.fog = new THREE.Fog(0xcfe9f8, 220, 520);
+  island(scene);
+  // Roblox-like light: sun from the upper left, grey ambient
+  scene.add(new THREE.HemisphereLight(0xe8f4ff, 0x7a8a6a, 1.3));
+  const sun = new THREE.DirectionalLight(0xfff2dc, 2.4);
+  sun.position.set(-70, 120, 60); sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  Object.assign(sun.shadow.camera, { left: -130, right: 130, top: 130, bottom: -130, near: 1, far: 400 });
+  sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
+  scene.add(sun);
+  return scene;
+}
+
+function place(scene, stage, x, z, yaw) {
+  const d = dragon(stage); d.position.set(x, 3, z); d.rotation.y = yaw; scene.add(d); return d;
+}
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+window.SHOTS = {
+  // 16:9: the two Fire dragons on the grass in front, the island, its tree
+  // line and the snowy mountain behind (the game camera looks towards -Z).
+  Thumbnail: { w: 1920, h: 1080, build() {
+    const s = world();
+    // DragonBuilder dragons face -Z: yaw ~ +-2.5 turns them 3/4 towards the camera (+Z)
+    // inside the free starting area (tiles 7-21, about -32..28 studs), like a new island
+    place(s, 'Adult', -5.5, 0, -2.45);
+    place(s, 'Baby', 4.5, 4, 2.55);
+    egg(s, 'Water', 8.3, -1.5); egg(s, 'Nature', 10.6, 0.6); egg(s, 'Dark', 8.4, 2.3);
+    const cam = new THREE.PerspectiveCamera(40, 1920 / 1080, 0.5, 1200);
+    cam.position.set(1.2, 9.4, 19.5); cam.lookAt(1, 6.2, -16);
+    return [s, cam];
+  } },
+  // Square icon: the adult Fire dragon close up, the island behind.
+  Icon: { w: 1024, h: 1024, build() {
+    const s = world();
+    place(s, 'Adult', 0, 0, -2.5);
+    const cam = new THREE.PerspectiveCamera(36, 1, 0.3, 1200);
+    cam.position.set(1.5, 7.2, 12.5); cam.lookAt(0.6, 5.6, 0);
+    return [s, cam];
+  } },
+};
+window.renderShot = (name) => {
+  const shot = window.SHOTS[name];
+  renderer.setSize(shot.w, shot.h);
+  const [scene, cam] = shot.build();
+  renderer.render(scene, cam);
+  return renderer.domElement.toDataURL('image/png');
+};
+window.ready = true;
+</script></body></html>
