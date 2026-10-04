@@ -15,7 +15,7 @@ Each folder keeps the script that draws its icons, to tweak and re-render.
 | `shop/` | Shop tab icons (Dragons, Habitats, Buildings, Decorations) | — |
 | `ui/` | Other UI icons: Combat, Shovel (flat, SVG source + PNG); Plus (white + on a green rounded button), ArrowUp (green up arrow, status-arrow style) from `render_buttons.py` | 512 |
 | `logo/` | Game logo. Monochrome white (recommended): `Logo_White.png` (wing emblem + name), `Logo_White_Wordmark.png` (name only), Cinzel. Colour versions: `Logo.png`, `Logo_Fantasy.png`. All transparent | ~2250 wide |
-| `roblox/` | Game page images: `Icon.png` (512×512) and `Thumbnail.png` / `Thumbnail_Clean.png` (1920×1080), rendered with the real in-game Fire dragon meshes — see its README | — |
+| `roblox/` | Game page images, flat 2D: `Icon.png` (512×512), `Thumbnail.png` / `Thumbnail_Clean.png` (1920×1080) — see its README | — |
 | `illustrations/open-book/` | Illustration (not an icon): open book with an ink drawing of the baby fire dragon on the left page. `OpenBook.png` transparent, `OpenBook_preview.png` on a backdrop | 2400×1600 |
 
 Files starting with `_preview` are contact sheets for review, not game assets.

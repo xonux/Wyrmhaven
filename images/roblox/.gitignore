@@ -1,3 +1,5 @@
 node_modules/
 package-lock.json
-*_raw.png
+package.json
+_*_raw.png
+__pycache__/
