@@ -9,22 +9,23 @@
 `_preview_icon.png` shows the icon with Roblox's rounded corners at 512,
 150 and 50 px.
 
-Flat 2D vector illustration only (SVG sources: `Icon.svg`, `Thumbnail.svg`).
-Kept coherent with the game's content and numbers:
-- the Fire dragons use the Fire palette of `DragonBuilder.luau`
-  (`dragons.py`), baby next to adult in the game's 3.65 / 5.5 height ratio;
-- habitat platforms in their `HabitatDefs.PlatformColor` (Fire with its
-  volcano, Water pool, Nature trees, Electric crystals), a farm, a nest of
-  eggs in their `DragonDefs` egg colours (an egg about half an adult's
-  height, 2.6 / 5.5);
-- the island and sea, like the reference island; the white logo from
-  `../logo/Logo_White.png`.
+Glossy 2D illustration only (SVG sources `Icon.svg`, `Thumbnail.svg`), in
+the spirit of mobile-game key art, with Wyrmhaven's own content:
+- **Icon:** a baby Fire dragon hatching from a Fire egg (DragonDefs egg
+  colour) on a pile of gold Coins, on a blue bokeh background.
+- **Thumbnail:** the white logo centred at the top; the adult Fire dragon
+  (DragonBuilder's Fire palette) on the left, a baby Water dragon on the
+  right at about 2/3 of the adult's height (game ratio 3.65 / 5.5), a baby
+  Nature dragon flying, Fire and Nature eggs in the grass, hills, snowy
+  mountains and clouds. Baby colours are each element's
+  `DragonDefs.StageColors.Baby`.
+
+Pieces: `cute.py` (chibi baby in any element's colours, egg shell, coins,
+gradients), `dragons.py` (the adult), `keyart.py` (both layouts).
 
 ## Re-render
 
 ```
 npm i playwright-core     # in this folder
-python3 compose.py        # scene.py -> SVGs -> Icon.png, Thumbnail*.png, _preview_icon.png
+python3 compose.py        # keyart.py -> SVGs -> Icon.png, Thumbnail*.png, _preview_icon.png
 ```
-
-Layout, sizes and colours are in `scene.py`; the dragons in `dragons.py`.
