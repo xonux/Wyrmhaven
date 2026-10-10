@@ -14,6 +14,7 @@ Each folder keeps the script that draws its icons, to tweak and re-render.
 | `rarity-star/` | 4-pointed star, one arm per rarity color | 512 |
 | `shop/` | Shop tab icons (Dragons, Habitats, Buildings, Decorations) | — |
 | `ui/` | Other UI icons: Combat, Shovel (flat, SVG source + PNG); Plus (white + on a green rounded button), ArrowUp (green up arrow, status-arrow style) from `render_buttons.py` | 512 |
+| `ranks/` | Rank badges: Bronze, Silver, Gold, Diamond, Master — metal shield with a dragon head, more ornaments per rank (wings, laurels, crystal, crown, flames) and 1–5 stars on the ribbon. `render_rank_badges.py` (SVG via Chromium; needs `playwright-core`, e.g. `roblox/node_modules`) | 512 |
 | `logo/` | Game logo. Monochrome white (recommended): `Logo_White.png` (wing emblem + name), `Logo_White_Wordmark.png` (name only), Cinzel. Colour versions: `Logo.png`, `Logo_Fantasy.png`. All transparent | ~2250 wide |
 | `roblox/` | Game page images in 3D from the game's own models (island, obstacles, Fire dragons, eggs): `Icon.png` (512×512), `Thumbnail.png` / `Thumbnail_Clean.png` (1920×1080) — see its README | — |
 | `illustrations/open-book/` | Illustration (not an icon): open book with an ink drawing of the baby fire dragon on the left page. `OpenBook.png` transparent, `OpenBook_preview.png` on a backdrop | 2400×1600 |
